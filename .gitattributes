@@ -1,0 +1,10 @@
+# 文件说明：Git 属性配置，固定文本文件归一化规则。
+
+* text=auto eol=lf
+
+*.md text eol=lf
+*.dart text eol=lf
+*.go text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf

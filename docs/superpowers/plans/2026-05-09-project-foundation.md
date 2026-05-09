@@ -55,7 +55,7 @@ git branch --show-current
 git remote -v
 ```
 
-Expected: current branch is `master`, and `origin` points to `https://github.com/lblgb/note.git`.
+Expected: current branch is `feature/project-foundation`, and `origin` points to `https://github.com/lblgb/note.git`.
 
 - [ ] **Step 3: Confirm foundation files already present**
 
@@ -643,10 +643,10 @@ Expected: commit succeeds.
 Run:
 
 ```powershell
-git push
+git push -u origin feature/project-foundation
 ```
 
-Expected: local `master` pushes to `origin/master`.
+Expected: local `feature/project-foundation` pushes to `origin/feature/project-foundation`.
 
 ---
 

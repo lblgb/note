@@ -25,3 +25,19 @@ data/
 Thumbs.db
 .idea/
 .vscode/
+
+# 本地环境配置
+.env
+.env.*
+!.env.example
+
+# 日志
+*.log
+
+# Android / Gradle
+.gradle/
+
+# Windows 构建产物
+*.exe
+*.dll
+*.pdb

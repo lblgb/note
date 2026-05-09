@@ -1,6 +1,7 @@
 # 文件说明：项目通用忽略规则，避免提交临时文件、构建产物和本地运行数据。
 
 .superpowers/
+.worktrees/
 
 # Flutter / Dart
 .dart_tool/

@@ -10,6 +10,7 @@ import (
 
 var (
 	ErrEmailExists     = errors.New("email already exists")
+	ErrUserIDExists    = errors.New("user id already exists")
 	ErrUserNotFound    = errors.New("user not found")
 	ErrSessionNotFound = errors.New("refresh session not found")
 	ErrDeviceNotFound  = errors.New("device not found")
@@ -51,9 +52,13 @@ func (repo *MemoryRepository) CreateUser(ctx context.Context, user User) error {
 	defer repo.mu.Unlock()
 
 	email := normalizeEmail(user.Email)
+	if _, exists := repo.users[user.ID]; exists {
+		return ErrUserIDExists
+	}
 	if _, exists := repo.emailIDs[email]; exists {
 		return ErrEmailExists
 	}
+	user = cloneUser(user)
 	repo.users[user.ID] = user
 	repo.emailIDs[email] = user.ID
 	return nil
@@ -68,7 +73,7 @@ func (repo *MemoryRepository) FindUserByEmail(ctx context.Context, email string)
 	if !exists {
 		return User{}, ErrUserNotFound
 	}
-	return repo.users[id], nil
+	return cloneUser(repo.users[id]), nil
 }
 
 // FindUserByID 按 ID 查询用户。
@@ -80,7 +85,7 @@ func (repo *MemoryRepository) FindUserByID(ctx context.Context, id string) (User
 	if !exists {
 		return User{}, ErrUserNotFound
 	}
-	return user, nil
+	return cloneUser(user), nil
 }
 
 // SaveRefreshSession 保存刷新令牌会话。
@@ -130,4 +135,12 @@ func (repo *MemoryRepository) SaveDevice(ctx context.Context, device Device) err
 // normalizeEmail 统一邮箱大小写和空白。
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// cloneUser 复制用户中的可变字段，避免仓库状态被外部切片修改。
+func cloneUser(user User) User {
+	if user.PasswordHash != nil {
+		user.PasswordHash = append([]byte(nil), user.PasswordHash...)
+	}
+	return user
 }

@@ -3,6 +3,7 @@ package auth
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
@@ -23,6 +24,79 @@ func TestMemoryRepositoryCreateAndFindUser(t *testing.T) {
 	}
 	if got.ID != user.ID {
 		t.Fatalf("期望用户 ID %q，实际为 %q", user.ID, got.ID)
+	}
+}
+
+// TestServiceRefreshAllowsOnlyOneConcurrentRotation 验证同一个刷新令牌并发轮换时只有一次成功。
+func TestServiceRefreshAllowsOnlyOneConcurrentRotation(t *testing.T) {
+	service := NewService(NewMemoryRepository(), NewTokenManager([]byte("test-secret"), time.Hour, 24*time.Hour))
+	ctx := context.Background()
+
+	registered, err := service.Register(ctx, RegisterInput{Email: "user@example.com", Password: "pass123456", DisplayName: "用户"})
+	if err != nil {
+		t.Fatalf("注册失败：%v", err)
+	}
+
+	const goroutines = 32
+	start := make(chan struct{})
+	errs := make(chan error, goroutines)
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for range goroutines {
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := service.Refresh(ctx, registered.RefreshToken)
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	successes := 0
+	invalidCredentials := 0
+	for err := range errs {
+		switch err {
+		case nil:
+			successes++
+		case ErrInvalidCredentials:
+			invalidCredentials++
+		default:
+			t.Fatalf("刷新返回了意外错误：%v", err)
+		}
+	}
+	if successes != 1 || invalidCredentials != goroutines-1 {
+		t.Fatalf("并发刷新应仅一次成功，实际成功 %d 次，凭据错误 %d 次", successes, invalidCredentials)
+	}
+}
+
+// TestServiceRegisterDeviceRejectsUnknownUser 验证未知用户不能登记设备。
+func TestServiceRegisterDeviceRejectsUnknownUser(t *testing.T) {
+	repo := NewMemoryRepository()
+	service := NewService(repo, NewTokenManager([]byte("test-secret"), time.Hour, 24*time.Hour))
+
+	device, err := service.RegisterDevice(context.Background(), "usr_missing", DeviceInput{DeviceName: "Windows 主力机", Platform: "windows"})
+	if err != ErrInvalidCredentials {
+		t.Fatalf("期望 ErrInvalidCredentials，实际为 %v，设备为 %+v", err, device)
+	}
+	if len(repo.devices) != 0 {
+		t.Fatalf("未知用户不应保存设备，实际保存 %d 个", len(repo.devices))
+	}
+}
+
+// TestMemoryRepositoryConsumeRefreshSessionExpiresAtBoundary 验证刷新会话在 now 等于 ExpiresAt 时已过期。
+func TestMemoryRepositoryConsumeRefreshSessionExpiresAtBoundary(t *testing.T) {
+	repo := NewMemoryRepository()
+	ctx := context.Background()
+	now := time.Now()
+	session := RefreshSession{TokenHash: "refresh_hash", UserID: "usr_test", ExpiresAt: now}
+
+	if err := repo.SaveRefreshSession(ctx, session); err != nil {
+		t.Fatalf("保存刷新会话失败：%v", err)
+	}
+	if _, err := repo.ConsumeRefreshSession(ctx, session.TokenHash, now); err != ErrSessionNotFound {
+		t.Fatalf("期望过期刷新会话不可消费，实际错误：%v", err)
 	}
 }
 

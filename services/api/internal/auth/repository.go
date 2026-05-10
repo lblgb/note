@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -24,6 +25,7 @@ type Repository interface {
 	SaveRefreshSession(ctx context.Context, session RefreshSession) error
 	FindRefreshSession(ctx context.Context, tokenHash string) (RefreshSession, error)
 	RevokeRefreshSession(ctx context.Context, tokenHash string) error
+	ConsumeRefreshSession(ctx context.Context, tokenHash string, now time.Time) (RefreshSession, error)
 	SaveDevice(ctx context.Context, device Device) error
 }
 
@@ -121,6 +123,20 @@ func (repo *MemoryRepository) RevokeRefreshSession(ctx context.Context, tokenHas
 	session.Revoked = true
 	repo.sessions[tokenHash] = session
 	return nil
+}
+
+// ConsumeRefreshSession 原子消费未被撤销且未过期的刷新会话。
+func (repo *MemoryRepository) ConsumeRefreshSession(ctx context.Context, tokenHash string, now time.Time) (RefreshSession, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+
+	session, exists := repo.sessions[tokenHash]
+	if !exists || session.Revoked || !now.Before(session.ExpiresAt) {
+		return RefreshSession{}, ErrSessionNotFound
+	}
+	session.Revoked = true
+	repo.sessions[tokenHash] = session
+	return session, nil
 }
 
 // SaveDevice 保存用户设备。

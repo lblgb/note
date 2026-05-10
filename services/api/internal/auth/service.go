@@ -91,12 +91,9 @@ func (service *Service) Login(ctx context.Context, input LoginInput) (AuthResult
 // Refresh 轮换刷新令牌并返回新令牌。
 func (service *Service) Refresh(ctx context.Context, refreshToken string) (TokenPair, error) {
 	hash := service.tokens.HashRefreshToken(refreshToken)
-	session, err := service.repo.FindRefreshSession(ctx, hash)
-	if err != nil || session.Revoked || time.Now().After(session.ExpiresAt) {
+	session, err := service.repo.ConsumeRefreshSession(ctx, hash, time.Now())
+	if err != nil {
 		return TokenPair{}, ErrInvalidCredentials
-	}
-	if err := service.repo.RevokeRefreshSession(ctx, hash); err != nil {
-		return TokenPair{}, err
 	}
 	return service.issueTokenPair(ctx, session.UserID)
 }
@@ -114,6 +111,9 @@ func (service *Service) Logout(ctx context.Context, refreshToken string) error {
 func (service *Service) RegisterDevice(ctx context.Context, userID string, input DeviceInput) (PublicDevice, error) {
 	if strings.TrimSpace(input.DeviceName) == "" || strings.TrimSpace(input.Platform) == "" {
 		return PublicDevice{}, ErrInvalidInput
+	}
+	if _, err := service.repo.FindUserByID(ctx, userID); err != nil {
+		return PublicDevice{}, ErrInvalidCredentials
 	}
 	device := Device{
 		ID:         newID("dev"),

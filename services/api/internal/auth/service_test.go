@@ -4,6 +4,7 @@ package auth
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 // TestMemoryRepositoryCreateAndFindUser 验证用户创建和邮箱查询。
@@ -115,5 +116,71 @@ func TestMemoryRepositoryRejectsDuplicateID(t *testing.T) {
 	}
 	if _, err := repo.FindUserByEmail(ctx, "second@example.com"); err != ErrUserNotFound {
 		t.Fatalf("期望第二个邮箱未写入索引，实际为 %v", err)
+	}
+}
+
+// TestServiceRegisterLoginRefreshLogout 验证注册、登录、刷新和退出流程。
+func TestServiceRegisterLoginRefreshLogout(t *testing.T) {
+	service := NewService(NewMemoryRepository(), NewTokenManager([]byte("test-secret"), time.Hour, 24*time.Hour))
+	ctx := context.Background()
+
+	registered, err := service.Register(ctx, RegisterInput{Email: "user@example.com", Password: "pass123456", DisplayName: "用户"})
+	if err != nil {
+		t.Fatalf("注册失败：%v", err)
+	}
+	if registered.User.Email != "user@example.com" || registered.AccessToken == "" || registered.RefreshToken == "" {
+		t.Fatalf("注册响应不完整：%+v", registered)
+	}
+
+	loggedIn, err := service.Login(ctx, LoginInput{Email: "user@example.com", Password: "pass123456"})
+	if err != nil {
+		t.Fatalf("登录失败：%v", err)
+	}
+	if loggedIn.AccessToken == "" || loggedIn.RefreshToken == "" {
+		t.Fatalf("登录令牌不能为空：%+v", loggedIn)
+	}
+
+	refreshed, err := service.Refresh(ctx, loggedIn.RefreshToken)
+	if err != nil {
+		t.Fatalf("刷新失败：%v", err)
+	}
+	if refreshed.AccessToken == "" || refreshed.RefreshToken == "" || refreshed.RefreshToken == loggedIn.RefreshToken {
+		t.Fatalf("刷新应返回新令牌：%+v", refreshed)
+	}
+
+	if err := service.Logout(ctx, refreshed.RefreshToken); err != nil {
+		t.Fatalf("退出登录失败：%v", err)
+	}
+	if _, err := service.Refresh(ctx, refreshed.RefreshToken); err != ErrInvalidCredentials {
+		t.Fatalf("已退出刷新令牌应失效，实际错误：%v", err)
+	}
+}
+
+// TestServiceRegisterRejectsWeakPassword 验证弱密码被拒绝。
+func TestServiceRegisterRejectsWeakPassword(t *testing.T) {
+	service := NewService(NewMemoryRepository(), NewTokenManager([]byte("test-secret"), time.Hour, 24*time.Hour))
+
+	_, err := service.Register(context.Background(), RegisterInput{Email: "user@example.com", Password: "short", DisplayName: "用户"})
+	if err != ErrInvalidInput {
+		t.Fatalf("期望 ErrInvalidInput，实际为 %v", err)
+	}
+}
+
+// TestServiceRegisterDevice 验证设备登记。
+func TestServiceRegisterDevice(t *testing.T) {
+	service := NewService(NewMemoryRepository(), NewTokenManager([]byte("test-secret"), time.Hour, 24*time.Hour))
+	ctx := context.Background()
+
+	registered, err := service.Register(ctx, RegisterInput{Email: "user@example.com", Password: "pass123456", DisplayName: "用户"})
+	if err != nil {
+		t.Fatalf("注册失败：%v", err)
+	}
+
+	device, err := service.RegisterDevice(ctx, registered.User.ID, DeviceInput{DeviceName: "Windows 主力机", Platform: "windows"})
+	if err != nil {
+		t.Fatalf("设备登记失败：%v", err)
+	}
+	if device.UserID != registered.User.ID || device.Platform != "windows" {
+		t.Fatalf("设备信息不匹配：%+v", device)
 	}
 }

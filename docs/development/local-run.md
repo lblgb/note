@@ -9,11 +9,18 @@
 - Go，用于同步后端。
 - PostgreSQL，后续用于服务端主数据库。
 
+Flutter 与 Android 环境配置见：
+
+```text
+docs/development/flutter-setup.md
+```
+
 ## 检查工具
 
 ```powershell
 git --version
 flutter --version
+flutter doctor -v
 go version
 ```
 
@@ -25,7 +32,7 @@ go version
 apps/client
 ```
 
-Flutter 项目创建后，运行方式为：
+Flutter 项目创建后，Windows 运行方式为：
 
 ```powershell
 Set-Location apps/client

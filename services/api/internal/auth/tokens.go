@@ -30,7 +30,17 @@ type TokenManager struct {
 
 // NewTokenManager 创建令牌管理器。
 func NewTokenManager(secret []byte, accessTTL time.Duration, refreshTTL time.Duration) *TokenManager {
-	return &TokenManager{secret: secret, accessTTL: accessTTL, refreshTTL: refreshTTL}
+	if len(secret) == 0 {
+		panic("auth: token secret must not be empty")
+	}
+	if accessTTL <= 0 {
+		panic("auth: access token TTL must be positive")
+	}
+	if refreshTTL <= 0 {
+		panic("auth: refresh token TTL must be positive")
+	}
+	secretCopy := append([]byte(nil), secret...)
+	return &TokenManager{secret: secretCopy, accessTTL: accessTTL, refreshTTL: refreshTTL}
 }
 
 // IssueAccessToken 签发 HMAC 访问令牌。

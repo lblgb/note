@@ -3,10 +3,13 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
 )
+
+var errInjectedRefreshSave = errors.New("injected refresh save failure")
 
 // TestMemoryRepositoryCreateAndFindUser 验证用户创建和邮箱查询。
 func TestMemoryRepositoryCreateAndFindUser(t *testing.T) {
@@ -25,6 +28,84 @@ func TestMemoryRepositoryCreateAndFindUser(t *testing.T) {
 	if got.ID != user.ID {
 		t.Fatalf("期望用户 ID %q，实际为 %q", user.ID, got.ID)
 	}
+}
+
+type failingRefreshRepository struct {
+	sessions        map[string]RefreshSession
+	failRefreshSave bool
+}
+
+func newFailingRefreshRepository(session RefreshSession) *failingRefreshRepository {
+	return &failingRefreshRepository{
+		sessions: map[string]RefreshSession{session.TokenHash: session},
+	}
+}
+
+func (repo *failingRefreshRepository) CreateUser(ctx context.Context, user User) error {
+	return nil
+}
+
+func (repo *failingRefreshRepository) FindUserByEmail(ctx context.Context, email string) (User, error) {
+	return User{}, ErrUserNotFound
+}
+
+func (repo *failingRefreshRepository) FindUserByID(ctx context.Context, id string) (User, error) {
+	return User{ID: id}, nil
+}
+
+func (repo *failingRefreshRepository) SaveRefreshSession(ctx context.Context, session RefreshSession) error {
+	if repo.failRefreshSave {
+		return errInjectedRefreshSave
+	}
+	repo.sessions[session.TokenHash] = session
+	return nil
+}
+
+func (repo *failingRefreshRepository) FindRefreshSession(ctx context.Context, tokenHash string) (RefreshSession, error) {
+	session, ok := repo.sessions[tokenHash]
+	if !ok {
+		return RefreshSession{}, ErrSessionNotFound
+	}
+	return session, nil
+}
+
+func (repo *failingRefreshRepository) RevokeRefreshSession(ctx context.Context, tokenHash string) error {
+	session, ok := repo.sessions[tokenHash]
+	if !ok {
+		return ErrSessionNotFound
+	}
+	session.Revoked = true
+	repo.sessions[tokenHash] = session
+	return nil
+}
+
+func (repo *failingRefreshRepository) ConsumeRefreshSession(ctx context.Context, tokenHash string, now time.Time) (RefreshSession, error) {
+	session, ok := repo.sessions[tokenHash]
+	if !ok || session.Revoked || !now.Before(session.ExpiresAt) {
+		return RefreshSession{}, ErrSessionNotFound
+	}
+	session.Revoked = true
+	repo.sessions[tokenHash] = session
+	return session, nil
+}
+
+func (repo *failingRefreshRepository) RotateRefreshSession(ctx context.Context, oldTokenHash string, newSession RefreshSession, now time.Time) (RefreshSession, error) {
+	if repo.failRefreshSave {
+		return RefreshSession{}, errInjectedRefreshSave
+	}
+	oldSession, ok := repo.sessions[oldTokenHash]
+	if !ok || oldSession.Revoked || !now.Before(oldSession.ExpiresAt) {
+		return RefreshSession{}, ErrSessionNotFound
+	}
+	newSession.UserID = oldSession.UserID
+	oldSession.Revoked = true
+	repo.sessions[oldTokenHash] = oldSession
+	repo.sessions[newSession.TokenHash] = newSession
+	return oldSession, nil
+}
+
+func (repo *failingRefreshRepository) SaveDevice(ctx context.Context, device Device) error {
+	return nil
 }
 
 // TestServiceRefreshAllowsOnlyOneConcurrentRotation 验证同一个刷新令牌并发轮换时只有一次成功。
@@ -71,6 +152,37 @@ func TestServiceRefreshAllowsOnlyOneConcurrentRotation(t *testing.T) {
 	}
 }
 
+// TestServiceRefreshKeepsOldTokenWhenReplacementSaveFails 验证新会话保存失败时旧刷新令牌仍可使用。
+func TestServiceRefreshKeepsOldTokenWhenReplacementSaveFails(t *testing.T) {
+	tokens := NewTokenManager([]byte("test-secret"), time.Hour, 24*time.Hour)
+	refreshToken, refreshHash, expiresAt, err := tokens.IssueRefreshToken()
+	if err != nil {
+		t.Fatalf("签发刷新令牌失败：%v", err)
+	}
+	repo := newFailingRefreshRepository(RefreshSession{
+		TokenHash: refreshHash,
+		UserID:    "usr_test",
+		ExpiresAt: expiresAt,
+	})
+	service := NewService(repo, tokens)
+
+	repo.failRefreshSave = true
+	if _, err := service.Refresh(context.Background(), refreshToken); err != errInjectedRefreshSave {
+		t.Fatalf("期望替换会话保存失败，实际错误：%v", err)
+	}
+	if repo.sessions[refreshHash].Revoked {
+		t.Fatal("替换会话保存失败时旧刷新令牌不应被撤销")
+	}
+
+	repo.failRefreshSave = false
+	if _, err := service.Refresh(context.Background(), refreshToken); err != nil {
+		t.Fatalf("旧刷新令牌应仍可再次刷新，实际错误：%v", err)
+	}
+	if !repo.sessions[refreshHash].Revoked {
+		t.Fatal("成功刷新后旧刷新令牌应被撤销")
+	}
+}
+
 // TestServiceRegisterDeviceRejectsUnknownUser 验证未知用户不能登记设备。
 func TestServiceRegisterDeviceRejectsUnknownUser(t *testing.T) {
 	repo := NewMemoryRepository()
@@ -85,18 +197,52 @@ func TestServiceRegisterDeviceRejectsUnknownUser(t *testing.T) {
 	}
 }
 
-// TestMemoryRepositoryConsumeRefreshSessionExpiresAtBoundary 验证刷新会话在 now 等于 ExpiresAt 时已过期。
-func TestMemoryRepositoryConsumeRefreshSessionExpiresAtBoundary(t *testing.T) {
+// TestMemoryRepositoryRotateRefreshSessionExpiresAtBoundary 验证刷新会话在 now 等于 ExpiresAt 时已过期。
+func TestMemoryRepositoryRotateRefreshSessionExpiresAtBoundary(t *testing.T) {
 	repo := NewMemoryRepository()
 	ctx := context.Background()
 	now := time.Now()
 	session := RefreshSession{TokenHash: "refresh_hash", UserID: "usr_test", ExpiresAt: now}
+	newSession := RefreshSession{TokenHash: "new_refresh_hash", ExpiresAt: now.Add(time.Hour)}
 
 	if err := repo.SaveRefreshSession(ctx, session); err != nil {
 		t.Fatalf("保存刷新会话失败：%v", err)
 	}
-	if _, err := repo.ConsumeRefreshSession(ctx, session.TokenHash, now); err != ErrSessionNotFound {
-		t.Fatalf("期望过期刷新会话不可消费，实际错误：%v", err)
+	if _, err := repo.RotateRefreshSession(ctx, session.TokenHash, newSession, now); err != ErrSessionNotFound {
+		t.Fatalf("期望过期刷新会话不可轮换，实际错误：%v", err)
+	}
+	if _, exists := repo.sessions[newSession.TokenHash]; exists {
+		t.Fatal("过期刷新会话轮换失败时不应保存新会话")
+	}
+}
+
+// TestMemoryRepositoryRotateRefreshSessionRevokesOldAndSavesNew 验证刷新会话轮换在一次仓库调用内撤销旧会话并保存新会话。
+func TestMemoryRepositoryRotateRefreshSessionRevokesOldAndSavesNew(t *testing.T) {
+	repo := NewMemoryRepository()
+	ctx := context.Background()
+	now := time.Now()
+	oldSession := RefreshSession{TokenHash: "old_refresh_hash", UserID: "usr_test", ExpiresAt: now.Add(time.Hour)}
+	newSession := RefreshSession{TokenHash: "new_refresh_hash", ExpiresAt: now.Add(2 * time.Hour)}
+
+	if err := repo.SaveRefreshSession(ctx, oldSession); err != nil {
+		t.Fatalf("保存旧刷新会话失败：%v", err)
+	}
+	rotated, err := repo.RotateRefreshSession(ctx, oldSession.TokenHash, newSession, now)
+	if err != nil {
+		t.Fatalf("轮换刷新会话失败：%v", err)
+	}
+	if rotated.TokenHash != oldSession.TokenHash || rotated.UserID != oldSession.UserID {
+		t.Fatalf("轮换应返回旧会话，实际为 %+v", rotated)
+	}
+	if !repo.sessions[oldSession.TokenHash].Revoked {
+		t.Fatal("旧刷新会话应被撤销")
+	}
+	savedNew, exists := repo.sessions[newSession.TokenHash]
+	if !exists {
+		t.Fatal("新刷新会话应被保存")
+	}
+	if savedNew.UserID != oldSession.UserID {
+		t.Fatalf("新刷新会话应继承用户 ID，实际为 %q", savedNew.UserID)
 	}
 }
 

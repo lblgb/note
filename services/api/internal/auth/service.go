@@ -90,12 +90,23 @@ func (service *Service) Login(ctx context.Context, input LoginInput) (AuthResult
 
 // Refresh 轮换刷新令牌并返回新令牌。
 func (service *Service) Refresh(ctx context.Context, refreshToken string) (TokenPair, error) {
-	hash := service.tokens.HashRefreshToken(refreshToken)
-	session, err := service.repo.ConsumeRefreshSession(ctx, hash, time.Now())
+	oldHash := service.tokens.HashRefreshToken(refreshToken)
+	newRefreshToken, newRefreshHash, expiresAt, err := service.tokens.IssueRefreshToken()
 	if err != nil {
-		return TokenPair{}, ErrInvalidCredentials
+		return TokenPair{}, err
 	}
-	return service.issueTokenPair(ctx, session.UserID)
+	oldSession, err := service.repo.RotateRefreshSession(ctx, oldHash, RefreshSession{TokenHash: newRefreshHash, ExpiresAt: expiresAt}, time.Now())
+	if err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			return TokenPair{}, ErrInvalidCredentials
+		}
+		return TokenPair{}, err
+	}
+	accessToken, err := service.tokens.IssueAccessToken(oldSession.UserID)
+	if err != nil {
+		return TokenPair{}, err
+	}
+	return TokenPair{AccessToken: accessToken, RefreshToken: newRefreshToken}, nil
 }
 
 // Logout 撤销刷新令牌。

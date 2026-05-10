@@ -23,9 +23,8 @@ type Repository interface {
 	FindUserByEmail(ctx context.Context, email string) (User, error)
 	FindUserByID(ctx context.Context, id string) (User, error)
 	SaveRefreshSession(ctx context.Context, session RefreshSession) error
-	FindRefreshSession(ctx context.Context, tokenHash string) (RefreshSession, error)
 	RevokeRefreshSession(ctx context.Context, tokenHash string) error
-	ConsumeRefreshSession(ctx context.Context, tokenHash string, now time.Time) (RefreshSession, error)
+	RotateRefreshSession(ctx context.Context, oldTokenHash string, newSession RefreshSession, now time.Time) (RefreshSession, error)
 	SaveDevice(ctx context.Context, device Device) error
 }
 
@@ -137,6 +136,22 @@ func (repo *MemoryRepository) ConsumeRefreshSession(ctx context.Context, tokenHa
 	session.Revoked = true
 	repo.sessions[tokenHash] = session
 	return session, nil
+}
+
+// RotateRefreshSession 原子撤销旧刷新会话并保存替换会话。
+func (repo *MemoryRepository) RotateRefreshSession(ctx context.Context, oldTokenHash string, newSession RefreshSession, now time.Time) (RefreshSession, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+
+	oldSession, exists := repo.sessions[oldTokenHash]
+	if !exists || oldSession.Revoked || !now.Before(oldSession.ExpiresAt) {
+		return RefreshSession{}, ErrSessionNotFound
+	}
+	newSession.UserID = oldSession.UserID
+	oldSession.Revoked = true
+	repo.sessions[oldTokenHash] = oldSession
+	repo.sessions[newSession.TokenHash] = newSession
+	return oldSession, nil
 }
 
 // SaveDevice 保存用户设备。

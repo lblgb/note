@@ -32,11 +32,12 @@ go version
 apps/client
 ```
 
-Flutter 项目创建后，Windows 运行方式为：
+Windows 运行方式为：
 
 ```powershell
 Set-Location apps/client
 flutter pub get
+flutter test
 flutter run -d windows
 ```
 

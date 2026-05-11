@@ -54,6 +54,16 @@ adb version
 sdkmanager --sdk_root=E:\tools\android-sdk --list_installed
 ```
 
+## 项目验证
+
+```powershell
+Set-Location apps/client
+flutter pub get
+flutter analyze
+flutter test
+flutter run -d windows
+```
+
 ## 已知说明
 
 - Android Studio 安装器在当前环境中无法申请管理员权限，因此本机采用免管理员的 Android Command Line Tools 方案。

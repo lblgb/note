@@ -9,10 +9,8 @@ import '../domain/note.dart';
 
 // NoteBrowserPage 展示本地文件夹、笔记列表和笔记详情。
 class NoteBrowserPage extends StatefulWidget {
-  const NoteBrowserPage({
-    super.key,
-    NoteRepository? repository,
-  }) : repository = repository ?? const _DefaultRepository();
+  const NoteBrowserPage({super.key, NoteRepository? repository})
+    : repository = repository ?? const _DefaultRepository();
 
   final NoteRepository repository;
 

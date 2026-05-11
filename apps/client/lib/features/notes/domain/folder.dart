@@ -2,10 +2,7 @@
 
 // Folder 表示客户端本地文件夹。
 class Folder {
-  const Folder({
-    required this.id,
-    required this.name,
-  });
+  const Folder({required this.id, required this.name});
 
   final String id;
   final String name;

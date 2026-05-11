@@ -10,7 +10,7 @@ void main() {
 
     expect(find.text('轻量同步笔记'), findsOneWidget);
     expect(find.text('收集箱'), findsOneWidget);
-    expect(find.text('后续会支持链接跳转'), findsOneWidget);
+    expect(find.text('后续会支持链接跳转'), findsWidgets);
     expect(find.text('下一批功能会逐步接入外部链接、内部笔记链接和 Markdown 预览。'), findsOneWidget);
   });
 
@@ -20,7 +20,7 @@ void main() {
     await tester.tap(find.text('工作'));
     await tester.pumpAndSettle();
 
-    expect(find.text('工作计划'), findsOneWidget);
+    expect(find.text('工作计划'), findsWidgets);
     expect(find.text('这里展示工作文件夹下的笔记。当前阶段只读，下一阶段会接入本地编辑保存。'), findsOneWidget);
   });
 

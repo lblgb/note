@@ -56,6 +56,8 @@ sdkmanager --sdk_root=E:\tools\android-sdk --list_installed
 
 ## 项目验证
 
+本地笔记浏览器阶段可以通过 Windows 客户端验证文件夹、笔记列表和笔记详情切换。当前阶段使用内存种子数据，不会写入 SQLite。
+
 ```powershell
 Set-Location apps/client
 flutter pub get

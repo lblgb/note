@@ -46,7 +46,7 @@ class SqliteNoteRepository implements NoteRepository {
 
   // close 关闭 SQLite 数据库连接。
   Future<void> close() async {
-    _database.dispose();
+    _database.close();
   }
 
   // listFolders 返回本地文件夹列表。

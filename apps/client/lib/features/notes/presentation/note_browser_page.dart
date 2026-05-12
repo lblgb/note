@@ -1,4 +1,4 @@
-// 文件说明：本地笔记浏览页面。
+// 文件说明：本地笔记浏览和编辑页面。
 
 import 'package:flutter/material.dart';
 
@@ -7,83 +7,57 @@ import '../data/note_repository.dart';
 import '../domain/folder.dart';
 import '../domain/note.dart';
 
-// NoteBrowserPage 展示本地文件夹、笔记列表和笔记详情。
+// NoteBrowserPage 展示本地文件夹、笔记列表、笔记详情和编辑入口。
 class NoteBrowserPage extends StatefulWidget {
-  const NoteBrowserPage({super.key, NoteRepository? repository})
-    : repository = repository ?? const _DefaultRepository();
+  const NoteBrowserPage({super.key, this.repository});
 
-  final NoteRepository repository;
+  final NoteRepository? repository;
 
-  // createState 创建本地笔记浏览状态。
+  // createState 创建本地笔记浏览和编辑状态。
   @override
   State<NoteBrowserPage> createState() => _NoteBrowserPageState();
 }
 
-// _DefaultRepository 延迟创建默认内存仓储。
-class _DefaultRepository implements NoteRepository {
-  const _DefaultRepository();
-
-  static final InMemoryNoteRepository _repository = InMemoryNoteRepository();
-
-  // listFolders 读取默认文件夹列表。
-  @override
-  List<Folder> listFolders() => _repository.listFolders();
-
-  // listNotes 读取默认文件夹下的笔记列表。
-  @override
-  List<Note> listNotes(String folderId) => _repository.listNotes(folderId);
-
-  // findNote 读取默认笔记详情。
-  @override
-  Note? findNote(String noteId) => _repository.findNote(noteId);
-
-  // createNote 通过默认仓储创建笔记。
-  @override
-  Note createNote({
-    required String folderId,
-    required String title,
-    required String content,
-  }) => _repository.createNote(
-    folderId: folderId,
-    title: title,
-    content: content,
-  );
-
-  // updateNote 通过默认仓储更新笔记。
-  @override
-  Note? updateNote({
-    required String noteId,
-    required String title,
-    required String content,
-  }) => _repository.updateNote(noteId: noteId, title: title, content: content);
-}
-
-// _NoteBrowserPageState 管理当前选中的文件夹和笔记。
+// _NoteBrowserPageState 管理当前选中的文件夹、笔记和编辑状态。
 class _NoteBrowserPageState extends State<NoteBrowserPage> {
+  late final NoteRepository _repository;
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _contentController = TextEditingController();
   String? _selectedFolderId;
   String? _selectedNoteId;
+  bool _isEditing = false;
+  bool _isCreating = false;
 
-  // initState 初始化默认选中的文件夹和笔记。
+  // initState 初始化仓储、默认选中的文件夹和笔记。
   @override
   void initState() {
     super.initState();
-    final folders = widget.repository.listFolders();
+    _repository = widget.repository ?? InMemoryNoteRepository();
+    final folders = _repository.listFolders();
     if (folders.isNotEmpty) {
       _selectFolder(folders.first.id, updateState: false);
     }
   }
 
-  // build 构建本地笔记浏览页面。
+  // dispose 释放编辑输入控制器。
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  // build 构建本地笔记浏览和编辑页面。
   @override
   Widget build(BuildContext context) {
-    final folders = widget.repository.listFolders();
+    final folders = _repository.listFolders();
     final selectedFolderId = _selectedFolderId;
     final notes = selectedFolderId == null
         ? <Note>[]
-        : widget.repository.listNotes(selectedFolderId);
+        : _repository.listNotes(selectedFolderId);
     final selectedNote = _selectedNoteId == null
         ? null
-        : widget.repository.findNote(_selectedNoteId!);
+        : _repository.findNote(_selectedNoteId!);
 
     return Scaffold(
       appBar: AppBar(title: const Text('轻量同步笔记')),
@@ -109,7 +83,21 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
                   onNoteSelected: _selectNote,
                 ),
                 const VerticalDivider(width: 1),
-                Expanded(child: _NoteDetailPane(note: selectedNote)),
+                Expanded(
+                  child: _NoteDetailPane(
+                    note: selectedNote,
+                    isEditing: _isEditing,
+                    isCreating: _isCreating,
+                    titleController: _titleController,
+                    contentController: _contentController,
+                    onCreate: _startCreateNote,
+                    onEdit: selectedNote == null
+                        ? null
+                        : () => _startEditNote(selectedNote),
+                    onSave: _saveEditing,
+                    onCancel: _cancelEditing,
+                  ),
+                ),
               ],
             );
           }
@@ -132,7 +120,19 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              _NoteDetailPane(note: selectedNote),
+              _NoteDetailPane(
+                note: selectedNote,
+                isEditing: _isEditing,
+                isCreating: _isCreating,
+                titleController: _titleController,
+                contentController: _contentController,
+                onCreate: _startCreateNote,
+                onEdit: selectedNote == null
+                    ? null
+                    : () => _startEditNote(selectedNote),
+                onSave: _saveEditing,
+                onCancel: _cancelEditing,
+              ),
             ],
           );
         },
@@ -142,13 +142,15 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
 
   // _selectFolder 切换文件夹并自动选择第一条笔记。
   void _selectFolder(String folderId, {bool updateState = true}) {
-    final notes = widget.repository.listNotes(folderId);
+    final notes = _repository.listNotes(folderId);
     final nextNoteId = notes.isEmpty ? null : notes.first.id;
 
     if (updateState) {
       setState(() {
         _selectedFolderId = folderId;
         _selectedNoteId = nextNoteId;
+        _isEditing = false;
+        _isCreating = false;
       });
       return;
     }
@@ -161,6 +163,84 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
   void _selectNote(String noteId) {
     setState(() {
       _selectedNoteId = noteId;
+      _isEditing = false;
+      _isCreating = false;
+    });
+  }
+
+  // _startCreateNote 进入新建笔记模式。
+  void _startCreateNote() {
+    final folderId = _selectedFolderId;
+    if (folderId == null) {
+      return;
+    }
+
+    setState(() {
+      _isCreating = true;
+      _isEditing = true;
+      _titleController.text = '未命名笔记';
+      _contentController.text = '';
+    });
+  }
+
+  // _startEditNote 进入当前笔记编辑模式。
+  void _startEditNote(Note note) {
+    setState(() {
+      _isCreating = false;
+      _isEditing = true;
+      _titleController.text = note.title;
+      _contentController.text = note.content;
+    });
+  }
+
+  // _saveEditing 保存新建或编辑结果。
+  void _saveEditing() {
+    final title = _normalizeTitle(_titleController.text);
+    final content = _contentController.text.trim();
+
+    if (_isCreating) {
+      final folderId = _selectedFolderId;
+      if (folderId == null) {
+        _cancelEditing();
+        return;
+      }
+
+      final note = _repository.createNote(
+        folderId: folderId,
+        title: title,
+        content: content,
+      );
+      setState(() {
+        _selectedNoteId = note.id;
+        _isCreating = false;
+        _isEditing = false;
+      });
+      return;
+    }
+
+    final noteId = _selectedNoteId;
+    if (noteId == null) {
+      _cancelEditing();
+      return;
+    }
+
+    final updated = _repository.updateNote(
+      noteId: noteId,
+      title: title,
+      content: content,
+    );
+    setState(() {
+      _selectedNoteId = updated?.id ?? _selectedNoteId;
+      _isEditing = false;
+      _isCreating = false;
+    });
+  }
+
+  // _cancelEditing 取消当前编辑。
+  void _cancelEditing() {
+    setState(() {
+      _isEditing = false;
+      _isCreating = false;
     });
   }
 }
@@ -272,18 +352,46 @@ class _NoteListPane extends StatelessWidget {
   }
 }
 
-// _NoteDetailPane 展示笔记详情。
+// _NoteDetailPane 展示笔记详情或编辑表单。
 class _NoteDetailPane extends StatelessWidget {
-  const _NoteDetailPane({required this.note});
+  const _NoteDetailPane({
+    required this.note,
+    required this.isEditing,
+    required this.isCreating,
+    required this.titleController,
+    required this.contentController,
+    required this.onCreate,
+    required this.onEdit,
+    required this.onSave,
+    required this.onCancel,
+  });
 
   final Note? note;
+  final bool isEditing;
+  final bool isCreating;
+  final TextEditingController titleController;
+  final TextEditingController contentController;
+  final VoidCallback onCreate;
+  final VoidCallback? onEdit;
+  final VoidCallback onSave;
+  final VoidCallback onCancel;
 
-  // build 构建详情区或空状态。
+  // build 构建详情区、编辑区或空状态。
   @override
   Widget build(BuildContext context) {
+    if (isEditing) {
+      return _NoteEditorPane(
+        isCreating: isCreating,
+        titleController: titleController,
+        contentController: contentController,
+        onSave: onSave,
+        onCancel: onCancel,
+      );
+    }
+
     final note = this.note;
     if (note == null) {
-      return const _EmptyState(message: '暂无笔记');
+      return _EmptyDetailPane(onCreate: onCreate);
     }
 
     return SingleChildScrollView(
@@ -293,7 +401,27 @@ class _NoteDetailPane extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(note.title, style: Theme.of(context).textTheme.headlineSmall),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    note.title,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: onCreate,
+                  icon: const Icon(Icons.add),
+                  label: const Text('新建'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('编辑'),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             Text(
               '更新于 ${_formatUpdatedAt(note.updatedAt)}',
@@ -303,6 +431,100 @@ class _NoteDetailPane extends StatelessWidget {
             Text(note.content, style: Theme.of(context).textTheme.bodyLarge),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// _NoteEditorPane 展示标题和正文编辑表单。
+class _NoteEditorPane extends StatelessWidget {
+  const _NoteEditorPane({
+    required this.isCreating,
+    required this.titleController,
+    required this.contentController,
+    required this.onSave,
+    required this.onCancel,
+  });
+
+  final bool isCreating;
+  final TextEditingController titleController;
+  final TextEditingController contentController;
+  final VoidCallback onSave;
+  final VoidCallback onCancel;
+
+  // build 构建编辑表单和操作按钮。
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isCreating ? '新建笔记' : '编辑笔记',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: '标题',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: contentController,
+              decoration: const InputDecoration(
+                labelText: '正文',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+              minLines: 8,
+              maxLines: 16,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: onSave,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('保存'),
+                ),
+                const SizedBox(width: 8),
+                TextButton(onPressed: onCancel, child: const Text('取消')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// _EmptyDetailPane 展示空详情区和新建入口。
+class _EmptyDetailPane extends StatelessWidget {
+  const _EmptyDetailPane({required this.onCreate});
+
+  final VoidCallback onCreate;
+
+  // build 构建空详情区。
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('暂无笔记'),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add),
+            label: const Text('新建'),
+          ),
+        ],
       ),
     );
   }
@@ -319,6 +541,12 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(child: Text(message));
   }
+}
+
+// _normalizeTitle 规范化标题，避免保存空标题。
+String _normalizeTitle(String value) {
+  final title = value.trim();
+  return title.isEmpty ? '未命名笔记' : title;
 }
 
 // _formatUpdatedAt 格式化笔记更新时间。

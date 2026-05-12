@@ -36,6 +36,26 @@ class _DefaultRepository implements NoteRepository {
   // findNote 读取默认笔记详情。
   @override
   Note? findNote(String noteId) => _repository.findNote(noteId);
+
+  // createNote 通过默认仓储创建笔记。
+  @override
+  Note createNote({
+    required String folderId,
+    required String title,
+    required String content,
+  }) => _repository.createNote(
+    folderId: folderId,
+    title: title,
+    content: content,
+  );
+
+  // updateNote 通过默认仓储更新笔记。
+  @override
+  Note? updateNote({
+    required String noteId,
+    required String title,
+    required String content,
+  }) => _repository.updateNote(noteId: noteId, title: title, content: content);
 }
 
 // _NoteBrowserPageState 管理当前选中的文件夹和笔记。

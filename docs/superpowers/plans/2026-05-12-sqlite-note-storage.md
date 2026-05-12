@@ -17,6 +17,7 @@
 - Modify: `apps/client/pubspec.lock`
 
 - [ ] Add `sqlite3: ^3.3.1` and `path: ^1.9.1` under client dependencies.
+- [ ] Add `hooks.user_defines.sqlite3` so Windows uses the system `winsqlite3.dll`.
 - [ ] Run `flutter pub get` from `apps/client`.
 - [ ] Commit as `build: 添加 SQLite 客户端依赖`.
 

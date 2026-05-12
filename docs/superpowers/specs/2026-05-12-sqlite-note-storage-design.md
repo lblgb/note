@@ -24,7 +24,7 @@
 
 ## 技术方案
 
-客户端使用 `sqlite3` 作为第一版 SQLite 依赖。现有 `NoteRepository` 是同步接口，`sqlite3` 可以保持页面侧同步读写模型不扩散，先满足 Windows 开发和自动化测试的持久化闭环。移动端正式打包时再补充平台原生 SQLite 库依赖。
+客户端使用 `sqlite3` 作为第一版 SQLite 依赖。现有 `NoteRepository` 是同步接口，`sqlite3` 可以保持页面侧同步读写模型不扩散，先满足 Windows 开发和自动化测试的持久化闭环。Windows 配置为使用系统自带的 `winsqlite3.dll`，避免测试或运行时从 GitHub 下载预编译库。移动端正式打包时再补充平台原生 SQLite 库依赖。
 
 新增 `SqliteNoteRepository`，实现现有 `NoteRepository` 接口。页面默认仓储从 `InMemoryNoteRepository` 切换到异步创建的 SQLite 仓储，测试仍可注入内存仓储。
 

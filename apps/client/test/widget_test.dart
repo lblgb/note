@@ -18,13 +18,20 @@ void main() {
     expect(find.text('正在加载笔记...'), findsOneWidget);
   });
 
-  testWidgets('默认展示第一条种子笔记', (tester) async {
+  testWidgets('默认展示 Calm Cyan 笔记界面', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(buildTestApp());
 
     expect(find.text('轻量同步笔记'), findsOneWidget);
-    expect(find.text('收集箱'), findsOneWidget);
+    expect(find.text('搜索标题、正文或链接...'), findsOneWidget);
+    expect(find.text('SQLite 已保存'), findsWidgets);
+    expect(find.text('收集箱'), findsWidgets);
     expect(find.text('后续会支持链接跳转'), findsWidgets);
-    expect(find.text('下一批功能会逐步接入外部链接、内部笔记链接和 Markdown 预览。'), findsOneWidget);
+    expect(find.text('下一批功能会逐步接入外部链接、内部笔记链接和 Markdown 预览。'), findsWidgets);
   });
 
   testWidgets('点击文件夹后切换笔记列表和详情', (tester) async {
@@ -37,13 +44,13 @@ void main() {
     expect(find.text('这里展示工作文件夹下的笔记。当前阶段只读，下一阶段会接入本地编辑保存。'), findsOneWidget);
   });
 
-  testWidgets('点击笔记后切换详情', (tester) async {
+  testWidgets('点击当前笔记后保持详情可读', (tester) async {
     await tester.pumpWidget(buildTestApp());
 
-    await tester.tap(find.text('欢迎使用轻量同步笔记'));
+    await tester.tap(find.text('后续会支持链接跳转').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('这是第一条本地种子笔记，用来验证文件夹、列表和详情区的浏览体验。'), findsOneWidget);
+    expect(find.text('下一批功能会逐步接入外部链接、内部笔记链接和 Markdown 预览。'), findsOneWidget);
   });
 
   testWidgets('新建笔记后展示新内容', (tester) async {

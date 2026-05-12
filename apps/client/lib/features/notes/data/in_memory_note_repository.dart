@@ -4,10 +4,11 @@ import '../domain/folder.dart';
 import '../domain/note.dart';
 import 'note_repository.dart';
 
-// InMemoryNoteRepository 提供可重复的本地种子笔记数据。
+// InMemoryNoteRepository 提供可重复的本地种子笔记数据和运行期写入能力。
 class InMemoryNoteRepository implements NoteRepository {
-  InMemoryNoteRepository()
-    : _folders = const [
+  InMemoryNoteRepository({DateTime Function()? now})
+    : _now = now ?? DateTime.now,
+      _folders = const [
         Folder(id: 'folder-inbox', name: '收集箱'),
         Folder(id: 'folder-work', name: '工作'),
         Folder(id: 'folder-life', name: '生活'),
@@ -43,8 +44,10 @@ class InMemoryNoteRepository implements NoteRepository {
         ),
       ];
 
+  final DateTime Function() _now;
   final List<Folder> _folders;
   final List<Note> _notes;
+  int _nextLocalNoteNumber = 1;
 
   // listFolders 返回种子文件夹列表。
   @override
@@ -67,5 +70,47 @@ class InMemoryNoteRepository implements NoteRepository {
       }
     }
     return null;
+  }
+
+  // createNote 在指定文件夹下创建内存笔记。
+  @override
+  Note createNote({
+    required String folderId,
+    required String title,
+    required String content,
+  }) {
+    final note = Note(
+      id: 'note-local-${_nextLocalNoteNumber++}',
+      folderId: folderId,
+      title: title,
+      content: content,
+      updatedAt: _now(),
+    );
+    _notes.add(note);
+    return note;
+  }
+
+  // updateNote 更新内存中的已有笔记。
+  @override
+  Note? updateNote({
+    required String noteId,
+    required String title,
+    required String content,
+  }) {
+    final index = _notes.indexWhere((note) => note.id == noteId);
+    if (index == -1) {
+      return null;
+    }
+
+    final previous = _notes[index];
+    final updated = Note(
+      id: previous.id,
+      folderId: previous.folderId,
+      title: title,
+      content: content,
+      updatedAt: _now(),
+    );
+    _notes[index] = updated;
+    return updated;
   }
 }

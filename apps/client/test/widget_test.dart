@@ -1,13 +1,25 @@
 // 文件说明：客户端本地笔记浏览和编辑组件测试。
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_client/app/note_app.dart';
+import 'package:note_client/features/notes/data/in_memory_note_repository.dart';
+import 'package:note_client/features/notes/presentation/note_browser_page.dart';
 
 // main 注册客户端本地笔记浏览和编辑组件测试。
 void main() {
+  // buildTestApp 创建使用独立内存仓储的测试应用。
+  Widget buildTestApp() {
+    return NoteApp(repository: InMemoryNoteRepository());
+  }
+
+  testWidgets('默认仓储加载完成前展示加载状态', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: NoteBrowserPage()));
+
+    expect(find.text('正在加载笔记...'), findsOneWidget);
+  });
+
   testWidgets('默认展示第一条种子笔记', (tester) async {
-    await tester.pumpWidget(const NoteApp());
+    await tester.pumpWidget(buildTestApp());
 
     expect(find.text('轻量同步笔记'), findsOneWidget);
     expect(find.text('收集箱'), findsOneWidget);
@@ -16,7 +28,7 @@ void main() {
   });
 
   testWidgets('点击文件夹后切换笔记列表和详情', (tester) async {
-    await tester.pumpWidget(const NoteApp());
+    await tester.pumpWidget(buildTestApp());
 
     await tester.tap(find.text('工作'));
     await tester.pumpAndSettle();
@@ -26,7 +38,7 @@ void main() {
   });
 
   testWidgets('点击笔记后切换详情', (tester) async {
-    await tester.pumpWidget(const NoteApp());
+    await tester.pumpWidget(buildTestApp());
 
     await tester.tap(find.text('欢迎使用轻量同步笔记'));
     await tester.pumpAndSettle();
@@ -35,7 +47,7 @@ void main() {
   });
 
   testWidgets('新建笔记后展示新内容', (tester) async {
-    await tester.pumpWidget(const NoteApp());
+    await tester.pumpWidget(buildTestApp());
 
     await tester.tap(find.text('新建').first);
     await tester.pumpAndSettle();
@@ -51,7 +63,7 @@ void main() {
   });
 
   testWidgets('编辑笔记后更新标题和正文', (tester) async {
-    await tester.pumpWidget(const NoteApp());
+    await tester.pumpWidget(buildTestApp());
 
     await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
@@ -67,7 +79,7 @@ void main() {
   });
 
   testWidgets('取消编辑后保留原内容', (tester) async {
-    await tester.pumpWidget(const NoteApp());
+    await tester.pumpWidget(buildTestApp());
 
     await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();

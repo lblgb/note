@@ -1,66 +1,103 @@
-// 文件说明：本地笔记浏览和编辑页面。
+// 文件说明：本地笔记浏览、编辑和默认 SQLite 仓储初始化页面。
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../data/in_memory_note_repository.dart';
 import '../data/note_repository.dart';
+import '../data/sqlite_note_repository.dart';
 import '../domain/folder.dart';
 import '../domain/note.dart';
 
 // NoteBrowserPage 展示本地文件夹、笔记列表、笔记详情和编辑入口。
 class NoteBrowserPage extends StatefulWidget {
-  const NoteBrowserPage({super.key, this.repository});
+  const NoteBrowserPage({super.key, this.repository, this.repositoryFactory});
 
   final NoteRepository? repository;
+  final Future<NoteRepository> Function()? repositoryFactory;
 
   // createState 创建本地笔记浏览和编辑状态。
   @override
   State<NoteBrowserPage> createState() => _NoteBrowserPageState();
 }
 
-// _NoteBrowserPageState 管理当前选中的文件夹、笔记和编辑状态。
+// _NoteBrowserPageState 管理仓储加载、当前选中文件夹、笔记和编辑状态。
 class _NoteBrowserPageState extends State<NoteBrowserPage> {
-  late final NoteRepository _repository;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
+  NoteRepository? _repository;
+  Object? _loadError;
   String? _selectedFolderId;
   String? _selectedNoteId;
+  bool _isLoading = true;
   bool _isEditing = false;
   bool _isCreating = false;
 
-  // initState 初始化仓储、默认选中的文件夹和笔记。
+  // initState 初始化注入仓储或启动默认 SQLite 仓储加载。
   @override
   void initState() {
     super.initState();
-    _repository = widget.repository ?? InMemoryNoteRepository();
-    final folders = _repository.listFolders();
-    if (folders.isNotEmpty) {
-      _selectFolder(folders.first.id, updateState: false);
+    final repository = widget.repository;
+    if (repository != null) {
+      _useRepository(repository);
+      _isLoading = false;
+      return;
     }
+    _loadRepository();
   }
 
-  // dispose 释放编辑输入控制器。
+  // dispose 释放编辑控制器和 SQLite 仓储连接。
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
+    final repository = _repository;
+    if (repository is SqliteNoteRepository) {
+      unawaited(repository.close());
+    }
     super.dispose();
   }
 
   // build 构建本地笔记浏览和编辑页面。
   @override
   Widget build(BuildContext context) {
-    final folders = _repository.listFolders();
+    final repository = _repository;
+    if (_isLoading) {
+      return const Scaffold(
+        appBar: _NoteAppBar(),
+        body: Center(child: Text('正在加载笔记...')),
+      );
+    }
+    if (_loadError != null || repository == null) {
+      return Scaffold(
+        appBar: const _NoteAppBar(),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('笔记数据库初始化失败'),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _loadRepository,
+                icon: const Icon(Icons.refresh),
+                label: const Text('重试'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final folders = repository.listFolders();
     final selectedFolderId = _selectedFolderId;
     final notes = selectedFolderId == null
         ? <Note>[]
-        : _repository.listNotes(selectedFolderId);
+        : repository.listNotes(selectedFolderId);
     final selectedNote = _selectedNoteId == null
         ? null
-        : _repository.findNote(_selectedNoteId!);
+        : repository.findNote(_selectedNoteId!);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('轻量同步笔记')),
+      appBar: const _NoteAppBar(),
       body: LayoutBuilder(
         builder: (context, constraints) {
           if (folders.isEmpty) {
@@ -140,9 +177,56 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
     );
   }
 
+  // _loadRepository 异步打开默认笔记仓储。
+  Future<void> _loadRepository() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+
+    try {
+      final factory = widget.repositoryFactory ?? SqliteNoteRepository.open;
+      final repository = await factory();
+      if (!mounted) {
+        if (repository is SqliteNoteRepository) {
+          unawaited(repository.close());
+        }
+        return;
+      }
+      setState(() {
+        _useRepository(repository);
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadError = error;
+        _isLoading = false;
+      });
+    }
+  }
+
+  // _useRepository 设置当前仓储并选择默认文件夹和笔记。
+  void _useRepository(NoteRepository repository) {
+    _repository = repository;
+    final folders = repository.listFolders();
+    if (folders.isEmpty) {
+      _selectedFolderId = null;
+      _selectedNoteId = null;
+      return;
+    }
+    _selectFolder(folders.first.id, updateState: false);
+  }
+
   // _selectFolder 切换文件夹并自动选择第一条笔记。
   void _selectFolder(String folderId, {bool updateState = true}) {
-    final notes = _repository.listNotes(folderId);
+    final repository = _repository;
+    if (repository == null) {
+      return;
+    }
+    final notes = repository.listNotes(folderId);
     final nextNoteId = notes.isEmpty ? null : notes.first.id;
 
     if (updateState) {
@@ -195,6 +279,11 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
 
   // _saveEditing 保存新建或编辑结果。
   void _saveEditing() {
+    final repository = _repository;
+    if (repository == null) {
+      return;
+    }
+
     final title = _normalizeTitle(_titleController.text);
     final content = _contentController.text.trim();
 
@@ -205,7 +294,7 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
         return;
       }
 
-      final note = _repository.createNote(
+      final note = repository.createNote(
         folderId: folderId,
         title: title,
         content: content,
@@ -224,7 +313,7 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
       return;
     }
 
-    final updated = _repository.updateNote(
+    final updated = repository.updateNote(
       noteId: noteId,
       title: title,
       content: content,
@@ -242,6 +331,21 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
       _isEditing = false;
       _isCreating = false;
     });
+  }
+}
+
+// _NoteAppBar 提供笔记页面标题栏。
+class _NoteAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _NoteAppBar();
+
+  // preferredSize 返回标准应用栏高度。
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  // build 构建标题栏。
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(title: const Text('轻量同步笔记'));
   }
 }
 

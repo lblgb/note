@@ -41,7 +41,7 @@ flutter test
 flutter run -d windows
 ```
 
-Windows 运行后可验证文件夹、笔记列表、详情切换，以及新建、编辑、保存和取消编辑。当前阶段文件夹和笔记会写入本地 SQLite，重启应用后仍可读取。
+Windows 运行后可验证 Calm Cyan UI 基线、文件夹、笔记列表、详情切换，以及新建、编辑、保存和取消编辑。当前阶段文件夹和笔记会写入本地 SQLite，重启应用后仍可读取。
 
 Android 运行方式为：
 

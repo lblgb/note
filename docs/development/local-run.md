@@ -41,6 +41,8 @@ flutter test
 flutter run -d windows
 ```
 
+Windows 运行后可验证文件夹、笔记列表、详情切换，以及运行期间的新建、编辑、保存和取消编辑。
+
 Android 运行方式为：
 
 ```powershell

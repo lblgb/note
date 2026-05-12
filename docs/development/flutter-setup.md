@@ -58,6 +58,8 @@ sdkmanager --sdk_root=E:\tools\android-sdk --list_installed
 
 本地笔记浏览器阶段可以通过 Windows 客户端验证文件夹、笔记列表和笔记详情切换。当前阶段使用内存种子数据，不会写入 SQLite。
 
+内存笔记编辑阶段可以通过 Windows 客户端验证新建、编辑、保存和取消编辑。当前阶段只保存到运行期内存，不会写入 SQLite，重启应用后改动会丢失。
+
 ```powershell
 Set-Location apps/client
 flutter pub get

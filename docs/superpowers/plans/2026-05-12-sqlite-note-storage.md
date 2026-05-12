@@ -6,7 +6,7 @@
 
 **Architecture:** Keep `NoteRepository` as the page-facing boundary. Add a SQLite-backed repository and let `NoteBrowserPage` initialize it asynchronously when no test repository is injected.
 
-**Tech Stack:** Flutter, Dart, `sqflite_common_ffi`, `path`, Flutter widget tests, Dart unit tests.
+**Tech Stack:** Flutter, Dart, `sqlite3`, `path`, Flutter widget tests, Dart unit tests.
 
 ---
 
@@ -16,7 +16,7 @@
 - Modify: `apps/client/pubspec.yaml`
 - Modify: `apps/client/pubspec.lock`
 
-- [ ] Add `sqflite_common_ffi: ^2.3.6` and `path: ^1.9.1` under client dependencies.
+- [ ] Add `sqlite3: ^3.3.1` and `path: ^1.9.1` under client dependencies.
 - [ ] Run `flutter pub get` from `apps/client`.
 - [ ] Commit as `build: 添加 SQLite 客户端依赖`.
 

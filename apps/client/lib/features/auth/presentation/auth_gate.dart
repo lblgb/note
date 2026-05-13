@@ -1,4 +1,6 @@
 // 文件说明：根据本地认证会话切换登录页和已登录应用内容。
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../data/auth_api_client.dart';
@@ -13,6 +15,16 @@ typedef AuthenticatedBuilder =
       VoidCallback logout,
     );
 
+typedef AuthDeviceProfileProvider = AuthDeviceProfile Function();
+
+// AuthDeviceProfile 表示客户端本机设备登记信息。
+class AuthDeviceProfile {
+  const AuthDeviceProfile({required this.deviceName, required this.platform});
+
+  final String deviceName;
+  final String platform;
+}
+
 // AuthGate 负责加载会话、处理登录注册和退出登录。
 class AuthGate extends StatefulWidget {
   const AuthGate({
@@ -20,11 +32,13 @@ class AuthGate extends StatefulWidget {
     required this.apiClient,
     required this.sessionStore,
     required this.authenticatedBuilder,
+    this.deviceProfileProvider = _defaultDeviceProfile,
   });
 
   final AuthApiClient apiClient;
   final AuthSessionStore sessionStore;
   final AuthenticatedBuilder authenticatedBuilder;
+  final AuthDeviceProfileProvider deviceProfileProvider;
 
   // createState 创建认证入口状态。
   @override
@@ -108,12 +122,19 @@ class _AuthGateState extends State<AuthGate> {
 
     try {
       final session = await action();
-      await widget.sessionStore.save(session);
+      final deviceProfile = widget.deviceProfileProvider();
+      final device = await widget.apiClient.registerDevice(
+        accessToken: session.accessToken,
+        deviceName: deviceProfile.deviceName,
+        platform: deviceProfile.platform,
+      );
+      final sessionWithDevice = session.copyWithDevice(device);
+      await widget.sessionStore.save(sessionWithDevice);
       if (!mounted) {
         return;
       }
       setState(() {
-        _session = session;
+        _session = sessionWithDevice;
         _isSubmitting = false;
       });
     } on AuthApiException catch (error) {
@@ -147,4 +168,21 @@ class _AuthGateState extends State<AuthGate> {
       _isSubmitting = false;
     });
   }
+}
+
+// _defaultDeviceProfile 按运行平台返回默认设备登记信息。
+AuthDeviceProfile _defaultDeviceProfile() {
+  if (Platform.isAndroid) {
+    return const AuthDeviceProfile(
+      deviceName: 'Android 设备',
+      platform: 'android',
+    );
+  }
+  if (Platform.isWindows) {
+    return const AuthDeviceProfile(
+      deviceName: 'Windows 设备',
+      platform: 'windows',
+    );
+  }
+  return const AuthDeviceProfile(deviceName: '当前设备', platform: 'unknown');
 }

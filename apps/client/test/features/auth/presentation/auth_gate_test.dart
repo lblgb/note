@@ -14,6 +14,13 @@ void main() {
     refreshToken: 'refresh-token',
   );
 
+  const device = AuthDevice(
+    id: 'dev_1',
+    userId: 'usr_1',
+    deviceName: 'Windows 设备',
+    platform: 'windows',
+  );
+
   // buildGate 创建用于测试的认证入口。
   Widget buildGate({
     AuthSession? initialSession,
@@ -25,13 +32,19 @@ void main() {
         apiClient: _FakeAuthApiClient(
           loginSession: loginSession ?? session,
           registerSession: registerSession ?? session,
+          device: device,
         ),
         sessionStore: MemoryAuthSessionStore(initialSession: initialSession),
+        deviceProfileProvider: () => const AuthDeviceProfile(
+          deviceName: 'Windows 设备',
+          platform: 'windows',
+        ),
         authenticatedBuilder: (context, currentSession, logout) {
           return Scaffold(
             body: Column(
               children: [
                 Text('已登录：${currentSession.user.displayName}'),
+                Text('设备：${currentSession.device?.id ?? '未登记'}'),
                 TextButton(onPressed: logout, child: const Text('退出')),
               ],
             ),
@@ -70,6 +83,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('已登录：用户'), findsOneWidget);
+    expect(find.text('设备：dev_1'), findsOneWidget);
   });
 
   testWidgets('退出登录后回到登录页', (tester) async {
@@ -88,10 +102,12 @@ class _FakeAuthApiClient implements AuthApiClient {
   _FakeAuthApiClient({
     required this.loginSession,
     required this.registerSession,
+    required this.device,
   });
 
   final AuthSession loginSession;
   final AuthSession registerSession;
+  final AuthDevice device;
 
   // baseUrl 返回测试 API 地址。
   @override
@@ -109,6 +125,16 @@ class _FakeAuthApiClient implements AuthApiClient {
   // logout 记录退出请求。
   @override
   Future<void> logout(String refreshToken) async {}
+
+  // registerDevice 返回预设设备。
+  @override
+  Future<AuthDevice> registerDevice({
+    required String accessToken,
+    required String deviceName,
+    required String platform,
+  }) async {
+    return device;
+  }
 
   // register 返回预设注册会话。
   @override

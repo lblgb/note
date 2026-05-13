@@ -199,6 +199,21 @@ class _NoopAuthApiClient implements AuthApiClient {
   @override
   Future<void> logout(String refreshToken) async {}
 
+  // registerDevice 返回测试设备。
+  @override
+  Future<AuthDevice> registerDevice({
+    required String accessToken,
+    required String deviceName,
+    required String platform,
+  }) async {
+    return AuthDevice(
+      id: 'dev_test',
+      userId: _testSession.user.id,
+      deviceName: deviceName,
+      platform: platform,
+    );
+  }
+
   // register 返回测试会话。
   @override
   Future<AuthSession> register({

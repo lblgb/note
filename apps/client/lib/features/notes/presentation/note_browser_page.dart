@@ -142,7 +142,6 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
                   child: Column(
                     children: [
                       _TopToolbar(
-                        onCreate: _startCreateNote,
                         onLogout: widget.onLogout,
                         showSearch: isWide,
                       ),
@@ -373,13 +372,8 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
 
 // _TopToolbar 展示产品品牌、搜索占位和主操作。
 class _TopToolbar extends StatelessWidget {
-  const _TopToolbar({
-    required this.onCreate,
-    required this.onLogout,
-    required this.showSearch,
-  });
+  const _TopToolbar({required this.onLogout, required this.showSearch});
 
-  final VoidCallback onCreate;
   final VoidCallback? onLogout;
   final bool showSearch;
 
@@ -417,11 +411,6 @@ class _TopToolbar extends StatelessWidget {
             ),
             const SizedBox(width: 12),
           ],
-          FilledButton.icon(
-            onPressed: onCreate,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('新建'),
-          ),
         ],
       ),
     );

@@ -37,6 +37,7 @@ void main() {
     expect(find.text('轻量同步笔记'), findsOneWidget);
     expect(find.text('搜索标题、正文或链接...'), findsOneWidget);
     expect(find.text('SQLite 已保存'), findsWidgets);
+    expect(find.text('新建'), findsOneWidget);
     expect(find.text('收集箱'), findsWidgets);
     expect(find.text('后续会支持链接跳转'), findsWidgets);
     expect(find.text('下一批功能会逐步接入外部链接、内部笔记链接和 Markdown 预览。'), findsWidgets);

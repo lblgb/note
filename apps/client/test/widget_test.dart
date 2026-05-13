@@ -15,7 +15,7 @@ void main() {
     return NoteApp(
       repository: repository ?? InMemoryNoteRepository(),
       authApiClient: _NoopAuthApiClient(),
-      authSessionStore: MemoryAuthSessionStore()..save(_testSession),
+      authSessionStore: MemoryAuthSessionStore(initialSession: _testSession),
     );
   }
 
@@ -32,6 +32,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     expect(find.text('轻量同步笔记'), findsOneWidget);
     expect(find.text('搜索标题、正文或链接...'), findsOneWidget);
@@ -43,6 +44,7 @@ void main() {
 
   testWidgets('点击文件夹后切换笔记列表和详情', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('工作'));
     await tester.pumpAndSettle();
@@ -53,6 +55,7 @@ void main() {
 
   testWidgets('点击当前笔记后保持详情可读', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('后续会支持链接跳转').first);
     await tester.pumpAndSettle();
@@ -62,6 +65,7 @@ void main() {
 
   testWidgets('新建笔记后展示新内容', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('新建').first);
     await tester.pumpAndSettle();
@@ -78,6 +82,7 @@ void main() {
 
   testWidgets('编辑笔记后更新标题和正文', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
@@ -94,6 +99,7 @@ void main() {
 
   testWidgets('取消编辑后保留原内容', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();

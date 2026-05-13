@@ -18,6 +18,9 @@ abstract interface class AuthSessionStore {
 
 // MemoryAuthSessionStore 提供测试用内存会话存储。
 class MemoryAuthSessionStore implements AuthSessionStore {
+  MemoryAuthSessionStore({AuthSession? initialSession})
+    : _session = initialSession;
+
   AuthSession? _session;
 
   // load 返回当前内存会话。

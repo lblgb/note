@@ -26,7 +26,7 @@ void main() {
           loginSession: loginSession ?? session,
           registerSession: registerSession ?? session,
         ),
-        sessionStore: MemoryAuthSessionStore()..saveInitial(initialSession),
+        sessionStore: MemoryAuthSessionStore(initialSession: initialSession),
         authenticatedBuilder: (context, currentSession, logout) {
           return Scaffold(
             body: Column(
@@ -118,16 +118,5 @@ class _FakeAuthApiClient implements AuthApiClient {
     required String displayName,
   }) async {
     return registerSession;
-  }
-}
-
-// _MemoryAuthSessionStoreTestExtension 为测试准备初始会话。
-extension _MemoryAuthSessionStoreTestExtension on MemoryAuthSessionStore {
-  // saveInitial 同步设置测试初始会话。
-  MemoryAuthSessionStore saveInitial(AuthSession? session) {
-    if (session != null) {
-      save(session);
-    }
-    return this;
   }
 }

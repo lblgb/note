@@ -24,6 +24,12 @@ void main() {
     user: AuthUser(id: 'usr_1', email: 'user@example.com', displayName: '用户'),
     accessToken: 'access-token',
     refreshToken: 'refresh-token',
+    device: AuthDevice(
+      id: 'dev_1',
+      userId: 'usr_1',
+      deviceName: 'Windows 设备',
+      platform: 'windows',
+    ),
   );
 
   test('FileAuthSessionStore 可以保存并读取会话', () async {
@@ -35,6 +41,7 @@ void main() {
     expect(loaded?.user.email, 'user@example.com');
     expect(loaded?.accessToken, 'access-token');
     expect(loaded?.refreshToken, 'refresh-token');
+    expect(loaded?.device?.id, 'dev_1');
   });
 
   test('FileAuthSessionStore 文件不存在时返回 null', () async {

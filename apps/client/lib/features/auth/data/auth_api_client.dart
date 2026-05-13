@@ -83,13 +83,42 @@ class AuthApiClient {
     await _post('/api/auth/logout', {'refreshToken': refreshToken});
   }
 
+  // registerDevice 登记当前设备并返回服务端设备信息。
+  Future<AuthDevice> registerDevice({
+    required String accessToken,
+    required String deviceName,
+    required String platform,
+  }) async {
+    final response = await _post('/api/devices/register', {
+      'deviceName': deviceName,
+      'platform': platform,
+    }, accessToken: accessToken);
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, Object?> ||
+        decoded['device'] is! Map<String, Object?>) {
+      throw const AuthApiException(
+        code: 'invalid_response',
+        message: '请求失败，请稍后重试',
+      );
+    }
+    return AuthDevice.fromJson(decoded['device'] as Map<String, Object?>);
+  }
+
   // _post 发送认证 API POST JSON 请求。
-  Future<AuthApiResponse> _post(String path, Map<String, Object?> body) async {
+  Future<AuthApiResponse> _post(
+    String path,
+    Map<String, Object?> body, {
+    String? accessToken,
+  }) async {
+    final headers = <String, String>{
+      'content-type': 'application/json; charset=utf-8',
+      if (accessToken != null) 'authorization': 'Bearer $accessToken',
+    };
     final request = AuthApiRequest(
       method: 'POST',
       path: path,
       body: jsonEncode(body),
-      headers: const {'content-type': 'application/json; charset=utf-8'},
+      headers: headers,
     );
 
     try {

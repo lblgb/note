@@ -118,4 +118,32 @@ void main() {
     expect(requests.single.path, '/api/auth/logout');
     expect(jsonDecode(requests.single.body)['refreshToken'], 'refresh-token');
   });
+
+  test('registerDevice 携带访问令牌登记当前设备', () async {
+    final requests = <AuthApiRequest>[];
+    final client = AuthApiClient(
+      baseUrl: 'http://localhost:8080',
+      transport: (request) async {
+        requests.add(request);
+        return const AuthApiResponse(
+          statusCode: 201,
+          body:
+              '{"device":{"id":"dev_1","userId":"usr_1",'
+              '"deviceName":"Windows 设备","platform":"windows"}}',
+        );
+      },
+    );
+
+    final device = await client.registerDevice(
+      accessToken: 'access-token',
+      deviceName: 'Windows 设备',
+      platform: 'windows',
+    );
+
+    expect(requests.single.path, '/api/devices/register');
+    expect(requests.single.headers['authorization'], 'Bearer access-token');
+    expect(jsonDecode(requests.single.body)['platform'], 'windows');
+    expect(device.id, 'dev_1');
+    expect(device.platform, 'windows');
+  });
 }

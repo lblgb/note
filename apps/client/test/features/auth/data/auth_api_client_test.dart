@@ -1,0 +1,121 @@
+// 文件说明：测试 Flutter 认证 API 客户端的响应解析和错误映射。
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:note_client/features/auth/data/auth_api_client.dart';
+import 'package:test/test.dart';
+
+// main 验证认证 API 客户端的请求和响应行为。
+void main() {
+  test('login 发送登录请求并解析会话', () async {
+    final requests = <AuthApiRequest>[];
+    final client = AuthApiClient(
+      baseUrl: 'http://localhost:8080',
+      transport: (request) async {
+        requests.add(request);
+        return const AuthApiResponse(
+          statusCode: 200,
+          body:
+              '{"user":{"id":"usr_1","email":"user@example.com","displayName":"用户"},'
+              '"accessToken":"access","refreshToken":"refresh"}',
+        );
+      },
+    );
+
+    final session = await client.login(
+      email: 'user@example.com',
+      password: 'pass123456',
+    );
+
+    expect(requests.single.path, '/api/auth/login');
+    expect(requests.single.method, 'POST');
+    expect(jsonDecode(requests.single.body)['email'], 'user@example.com');
+    expect(session.user.id, 'usr_1');
+    expect(session.accessToken, 'access');
+    expect(session.refreshToken, 'refresh');
+  });
+
+  test('register 发送注册请求并解析会话', () async {
+    final requests = <AuthApiRequest>[];
+    final client = AuthApiClient(
+      baseUrl: 'http://localhost:8080',
+      transport: (request) async {
+        requests.add(request);
+        return const AuthApiResponse(
+          statusCode: 201,
+          body:
+              '{"user":{"id":"usr_2","email":"new@example.com","displayName":"新用户"},'
+              '"accessToken":"new-access","refreshToken":"new-refresh"}',
+        );
+      },
+    );
+
+    final session = await client.register(
+      email: 'new@example.com',
+      password: 'pass123456',
+      displayName: '新用户',
+    );
+
+    expect(requests.single.path, '/api/auth/register');
+    expect(jsonDecode(requests.single.body)['displayName'], '新用户');
+    expect(session.user.email, 'new@example.com');
+    expect(session.accessToken, 'new-access');
+  });
+
+  test('服务端 JSON 错误会映射为 AuthApiException', () async {
+    final client = AuthApiClient(
+      baseUrl: 'http://localhost:8080',
+      transport: (request) async {
+        return const AuthApiResponse(
+          statusCode: 401,
+          body: '{"error":{"code":"invalid_credentials","message":"账号或凭据无效"}}',
+        );
+      },
+    );
+
+    await expectLater(
+      client.login(email: 'user@example.com', password: 'bad-password'),
+      throwsA(
+        isA<AuthApiException>()
+            .having((error) => error.code, 'code', 'invalid_credentials')
+            .having((error) => error.message, 'message', '账号或凭据无效'),
+      ),
+    );
+  });
+
+  test('网络错误会映射为可读错误', () async {
+    final client = AuthApiClient(
+      baseUrl: 'http://localhost:8080',
+      transport: (request) async {
+        throw const SocketException('connection refused');
+      },
+    );
+
+    await expectLater(
+      client.login(email: 'user@example.com', password: 'pass123456'),
+      throwsA(
+        isA<AuthApiException>().having(
+          (error) => error.message,
+          'message',
+          '无法连接服务器，请检查 API 地址或服务状态',
+        ),
+      ),
+    );
+  });
+
+  test('logout 发送刷新令牌并接受成功响应', () async {
+    final requests = <AuthApiRequest>[];
+    final client = AuthApiClient(
+      baseUrl: 'http://localhost:8080',
+      transport: (request) async {
+        requests.add(request);
+        return const AuthApiResponse(statusCode: 200, body: '{"status":"ok"}');
+      },
+    );
+
+    await client.logout('refresh-token');
+
+    expect(requests.single.path, '/api/auth/logout');
+    expect(jsonDecode(requests.single.body)['refreshToken'], 'refresh-token');
+  });
+}

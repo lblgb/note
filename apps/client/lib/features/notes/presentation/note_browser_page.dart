@@ -7,6 +7,7 @@ import '../data/note_repository.dart';
 import '../data/sqlite_note_repository.dart';
 import '../domain/folder.dart';
 import '../domain/note.dart';
+import 'markdown_note_body.dart';
 
 const _calmBg = Color(0xFFEEF8FB);
 const _calmPanel = Color(0xFFFFFFFF);
@@ -141,6 +142,7 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
                       Expanded(
                         child: isWide
                             ? _WideWorkspace(
+                                repository: repository,
                                 folders: folders,
                                 notes: notes,
                                 selectedFolderId: selectedFolderId,
@@ -153,6 +155,7 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
                                 contentController: _contentController,
                                 onFolderSelected: _selectFolder,
                                 onNoteSelected: _selectNote,
+                                onLinkedNoteSelected: _openLinkedNote,
                                 onCreate: _startCreateNote,
                                 onEdit: selectedNote == null
                                     ? null
@@ -161,6 +164,7 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
                                 onCancel: _cancelEditing,
                               )
                             : _NarrowWorkspace(
+                                repository: repository,
                                 folders: folders,
                                 notes: notes,
                                 selectedFolderId: selectedFolderId,
@@ -173,6 +177,7 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
                                 contentController: _contentController,
                                 onFolderSelected: _selectFolder,
                                 onNoteSelected: _selectNote,
+                                onLinkedNoteSelected: _openLinkedNote,
                                 onCreate: _startCreateNote,
                                 onEdit: selectedNote == null
                                     ? null
@@ -262,6 +267,16 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
   void _selectNote(String noteId) {
     setState(() {
       _selectedNoteId = noteId;
+      _isEditing = false;
+      _isCreating = false;
+    });
+  }
+
+  // _openLinkedNote 切换到内部链接指向的文件夹和笔记。
+  void _openLinkedNote(Note note) {
+    setState(() {
+      _selectedFolderId = note.folderId;
+      _selectedNoteId = note.id;
       _isEditing = false;
       _isCreating = false;
     });
@@ -483,6 +498,7 @@ class _SyncBadge extends StatelessWidget {
 // _WideWorkspace 展示 Windows 宽屏三栏工作区。
 class _WideWorkspace extends StatelessWidget {
   const _WideWorkspace({
+    required this.repository,
     required this.folders,
     required this.notes,
     required this.selectedFolderId,
@@ -495,12 +511,14 @@ class _WideWorkspace extends StatelessWidget {
     required this.contentController,
     required this.onFolderSelected,
     required this.onNoteSelected,
+    required this.onLinkedNoteSelected,
     required this.onCreate,
     required this.onEdit,
     required this.onSave,
     required this.onCancel,
   });
 
+  final NoteRepository repository;
   final List<Folder> folders;
   final List<Note> notes;
   final String? selectedFolderId;
@@ -513,6 +531,7 @@ class _WideWorkspace extends StatelessWidget {
   final TextEditingController contentController;
   final ValueChanged<String> onFolderSelected;
   final ValueChanged<String> onNoteSelected;
+  final ValueChanged<Note> onLinkedNoteSelected;
   final VoidCallback onCreate;
   final VoidCallback? onEdit;
   final VoidCallback onSave;
@@ -536,6 +555,7 @@ class _WideWorkspace extends StatelessWidget {
         ),
         Expanded(
           child: _NoteDetailPane(
+            repository: repository,
             note: selectedNote,
             folderName: selectedFolderName,
             isEditing: isEditing,
@@ -543,6 +563,7 @@ class _WideWorkspace extends StatelessWidget {
             titleController: titleController,
             contentController: contentController,
             onCreate: onCreate,
+            onLinkedNoteSelected: onLinkedNoteSelected,
             onEdit: onEdit,
             onSave: onSave,
             onCancel: onCancel,
@@ -556,6 +577,7 @@ class _WideWorkspace extends StatelessWidget {
 // _NarrowWorkspace 展示 Android 和窄屏单列工作区。
 class _NarrowWorkspace extends StatelessWidget {
   const _NarrowWorkspace({
+    required this.repository,
     required this.folders,
     required this.notes,
     required this.selectedFolderId,
@@ -568,12 +590,14 @@ class _NarrowWorkspace extends StatelessWidget {
     required this.contentController,
     required this.onFolderSelected,
     required this.onNoteSelected,
+    required this.onLinkedNoteSelected,
     required this.onCreate,
     required this.onEdit,
     required this.onSave,
     required this.onCancel,
   });
 
+  final NoteRepository repository;
   final List<Folder> folders;
   final List<Note> notes;
   final String? selectedFolderId;
@@ -586,6 +610,7 @@ class _NarrowWorkspace extends StatelessWidget {
   final TextEditingController contentController;
   final ValueChanged<String> onFolderSelected;
   final ValueChanged<String> onNoteSelected;
+  final ValueChanged<Note> onLinkedNoteSelected;
   final VoidCallback onCreate;
   final VoidCallback? onEdit;
   final VoidCallback onSave;
@@ -615,6 +640,7 @@ class _NarrowWorkspace extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _NoteDetailPane(
+          repository: repository,
           note: selectedNote,
           folderName: selectedFolderName,
           isEditing: isEditing,
@@ -622,6 +648,7 @@ class _NarrowWorkspace extends StatelessWidget {
           titleController: titleController,
           contentController: contentController,
           onCreate: onCreate,
+          onLinkedNoteSelected: onLinkedNoteSelected,
           onEdit: onEdit,
           onSave: onSave,
           onCancel: onCancel,
@@ -1059,6 +1086,7 @@ class _NoteCard extends StatelessWidget {
 // _NoteDetailPane 展示笔记详情或编辑表单。
 class _NoteDetailPane extends StatelessWidget {
   const _NoteDetailPane({
+    required this.repository,
     required this.note,
     required this.folderName,
     required this.isEditing,
@@ -1066,12 +1094,14 @@ class _NoteDetailPane extends StatelessWidget {
     required this.titleController,
     required this.contentController,
     required this.onCreate,
+    required this.onLinkedNoteSelected,
     required this.onEdit,
     required this.onSave,
     required this.onCancel,
     this.compact = false,
   });
 
+  final NoteRepository repository;
   final Note? note;
   final String folderName;
   final bool isEditing;
@@ -1079,6 +1109,7 @@ class _NoteDetailPane extends StatelessWidget {
   final TextEditingController titleController;
   final TextEditingController contentController;
   final VoidCallback onCreate;
+  final ValueChanged<Note> onLinkedNoteSelected;
   final VoidCallback? onEdit;
   final VoidCallback onSave;
   final VoidCallback onCancel;
@@ -1137,13 +1168,10 @@ class _NoteDetailPane extends StatelessWidget {
               style: const TextStyle(color: _calmFaint, fontSize: 13),
             ),
             const SizedBox(height: 30),
-            Text(
-              note.content,
-              style: TextStyle(
-                color: const Color(0xFF234755),
-                fontSize: compact ? 15 : 16,
-                height: 1.9,
-              ),
+            MarkdownNoteBody(
+              content: note.content,
+              repository: repository,
+              onNoteSelected: onLinkedNoteSelected,
             ),
           ],
         ),

@@ -8,8 +8,8 @@ import 'package:note_client/features/notes/presentation/note_browser_page.dart';
 // main 注册客户端本地笔记浏览和编辑组件测试。
 void main() {
   // buildTestApp 创建使用独立内存仓储的测试应用。
-  Widget buildTestApp() {
-    return NoteApp(repository: InMemoryNoteRepository());
+  Widget buildTestApp({InMemoryNoteRepository? repository}) {
+    return NoteApp(repository: repository ?? InMemoryNoteRepository());
   }
 
   testWidgets('默认仓储加载完成前展示加载状态', (tester) async {
@@ -100,5 +100,31 @@ void main() {
     expect(find.text('不会保存的标题'), findsNothing);
     expect(find.text('不会保存的正文。'), findsNothing);
     expect(find.text('下一批功能会逐步接入外部链接、内部笔记链接和 Markdown 预览。'), findsOneWidget);
+  });
+
+  testWidgets('点击标题内链后跳转到目标笔记', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = InMemoryNoteRepository(
+      now: () => DateTime(2026, 5, 13, 10),
+    )..createNote(
+        folderId: 'folder-inbox',
+        title: '内链测试',
+        content: '[[工作计划]]',
+      );
+
+    await tester.pumpWidget(buildTestApp(repository: repository));
+    await tester.pumpAndSettle();
+
+    expect(find.text('内链测试'), findsWidgets);
+
+    await tester.tap(find.text('工作计划', findRichText: true));
+    await tester.pumpAndSettle();
+
+    expect(find.text('工作计划'), findsWidgets);
+    expect(find.text('内链测试'), findsNothing);
   });
 }

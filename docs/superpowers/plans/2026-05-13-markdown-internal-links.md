@@ -6,7 +6,7 @@
 
 **Architecture:** Keep parsing and resolution outside the page widget. `NoteLinkResolver` expands wiki links and resolves internal hrefs through `NoteRepository`; `MarkdownNoteBody` renders Markdown and delegates successful internal navigation back to `NoteBrowserPage`.
 
-**Tech Stack:** Flutter, Dart, `flutter_markdown`, existing `NoteRepository`, existing widget tests.
+**Tech Stack:** Flutter, Dart, `flutter_markdown_plus`, existing `NoteRepository`, existing widget tests.
 
 ---
 
@@ -52,9 +52,9 @@ git commit -m "feat: add note link resolver"
 
 - [ ] **Step 1: Add dependency**
 
-Run from `apps/client`: `flutter pub add flutter_markdown`
+Run from `apps/client`: `flutter pub add flutter_markdown_plus`
 
-Expected: `pubspec.yaml` contains `flutter_markdown`, and `pubspec.lock` is updated.
+Expected: `pubspec.yaml` contains `flutter_markdown_plus`, and `pubspec.lock` is updated.
 
 - [ ] **Step 2: Implement `MarkdownNoteBody`**
 

@@ -33,7 +33,7 @@ class MarkdownNoteBody extends StatelessWidget {
 
     return MarkdownBody(
       data: resolver.expandWikiLinks(content),
-      selectable: true,
+      selectable: false,
       styleSheet: MarkdownStyleSheet(
         p: theme.textTheme.bodyLarge?.copyWith(
           color: _markdownText,

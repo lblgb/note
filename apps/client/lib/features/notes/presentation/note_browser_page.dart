@@ -24,10 +24,16 @@ const _calmGreen = Color(0xFF059669);
 
 // NoteBrowserPage 展示本地文件夹、笔记列表、笔记详情和编辑入口。
 class NoteBrowserPage extends StatefulWidget {
-  const NoteBrowserPage({super.key, this.repository, this.repositoryFactory});
+  const NoteBrowserPage({
+    super.key,
+    this.repository,
+    this.repositoryFactory,
+    this.onLogout,
+  });
 
   final NoteRepository? repository;
   final Future<NoteRepository> Function()? repositoryFactory;
+  final VoidCallback? onLogout;
 
   // createState 创建本地笔记浏览和编辑状态。
   @override
@@ -137,6 +143,7 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
                     children: [
                       _TopToolbar(
                         onCreate: _startCreateNote,
+                        onLogout: widget.onLogout,
                         showSearch: isWide,
                       ),
                       Expanded(
@@ -366,9 +373,14 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
 
 // _TopToolbar 展示产品品牌、搜索占位和主操作。
 class _TopToolbar extends StatelessWidget {
-  const _TopToolbar({required this.onCreate, required this.showSearch});
+  const _TopToolbar({
+    required this.onCreate,
+    required this.onLogout,
+    required this.showSearch,
+  });
 
   final VoidCallback onCreate;
+  final VoidCallback? onLogout;
   final bool showSearch;
 
   // build 构建顶部工具栏。
@@ -397,6 +409,14 @@ class _TopToolbar extends StatelessWidget {
           if (showSearch) ...[const _SearchBox(), const SizedBox(width: 12)],
           const _SyncBadge(),
           const SizedBox(width: 12),
+          if (onLogout != null) ...[
+            OutlinedButton.icon(
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text('退出'),
+            ),
+            const SizedBox(width: 12),
+          ],
           FilledButton.icon(
             onPressed: onCreate,
             icon: const Icon(Icons.add_rounded),

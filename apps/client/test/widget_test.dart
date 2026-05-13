@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_client/app/note_app.dart';
+import 'package:note_client/features/auth/data/auth_api_client.dart';
+import 'package:note_client/features/auth/data/auth_session_store.dart';
+import 'package:note_client/features/auth/domain/auth_session.dart';
 import 'package:note_client/features/notes/data/in_memory_note_repository.dart';
 import 'package:note_client/features/notes/presentation/note_browser_page.dart';
 
@@ -9,7 +12,11 @@ import 'package:note_client/features/notes/presentation/note_browser_page.dart';
 void main() {
   // buildTestApp 创建使用独立内存仓储的测试应用。
   Widget buildTestApp({InMemoryNoteRepository? repository}) {
-    return NoteApp(repository: repository ?? InMemoryNoteRepository());
+    return NoteApp(
+      repository: repository ?? InMemoryNoteRepository(),
+      authApiClient: _NoopAuthApiClient(),
+      authSessionStore: MemoryAuthSessionStore(initialSession: _testSession),
+    );
   }
 
   testWidgets('默认仓储加载完成前展示加载状态', (tester) async {
@@ -25,6 +32,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     expect(find.text('轻量同步笔记'), findsOneWidget);
     expect(find.text('搜索标题、正文或链接...'), findsOneWidget);
@@ -36,6 +44,7 @@ void main() {
 
   testWidgets('点击文件夹后切换笔记列表和详情', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('工作'));
     await tester.pumpAndSettle();
@@ -46,6 +55,7 @@ void main() {
 
   testWidgets('点击当前笔记后保持详情可读', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('后续会支持链接跳转').first);
     await tester.pumpAndSettle();
@@ -55,6 +65,7 @@ void main() {
 
   testWidgets('新建笔记后展示新内容', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('新建').first);
     await tester.pumpAndSettle();
@@ -71,6 +82,7 @@ void main() {
 
   testWidgets('编辑笔记后更新标题和正文', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
@@ -87,6 +99,7 @@ void main() {
 
   testWidgets('取消编辑后保留原内容', (tester) async {
     await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
@@ -110,11 +123,7 @@ void main() {
 
     final repository = InMemoryNoteRepository(
       now: () => DateTime(2026, 5, 13, 10),
-    )..createNote(
-        folderId: 'folder-inbox',
-        title: '内链测试',
-        content: '[[工作计划]]',
-      );
+    )..createNote(folderId: 'folder-inbox', title: '内链测试', content: '[[工作计划]]');
 
     await tester.pumpWidget(buildTestApp(repository: repository));
     await tester.pumpAndSettle();
@@ -127,4 +136,40 @@ void main() {
     expect(find.text('工作计划'), findsWidgets);
     expect(find.text('内链测试'), findsNothing);
   });
+}
+
+const _testSession = AuthSession(
+  user: AuthUser(id: 'usr_test', email: 'user@example.com', displayName: '用户'),
+  accessToken: 'access-token',
+  refreshToken: 'refresh-token',
+);
+
+// _NoopAuthApiClient 为笔记组件测试提供无需联网的认证客户端。
+class _NoopAuthApiClient implements AuthApiClient {
+  // baseUrl 返回测试 API 地址。
+  @override
+  String get baseUrl => 'http://localhost:8080';
+
+  // login 返回测试会话。
+  @override
+  Future<AuthSession> login({
+    required String email,
+    required String password,
+  }) async {
+    return _testSession;
+  }
+
+  // logout 忽略测试退出请求。
+  @override
+  Future<void> logout(String refreshToken) async {}
+
+  // register 返回测试会话。
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    return _testSession;
+  }
 }

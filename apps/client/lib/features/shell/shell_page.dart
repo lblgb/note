@@ -7,13 +7,14 @@ import '../notes/presentation/note_browser_page.dart';
 
 // ShellPage 展示客户端第一阶段主要界面。
 class ShellPage extends StatelessWidget {
-  const ShellPage({super.key, this.repository});
+  const ShellPage({super.key, this.repository, this.onLogout});
 
   final NoteRepository? repository;
+  final VoidCallback? onLogout;
 
   // build 构建应用壳并挂载本地笔记浏览器。
   @override
   Widget build(BuildContext context) {
-    return NoteBrowserPage(repository: repository);
+    return NoteBrowserPage(repository: repository, onLogout: onLogout);
   }
 }

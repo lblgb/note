@@ -1,5 +1,6 @@
 // 文件说明：客户端本地笔记浏览和编辑组件测试。
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_client/app/note_app.dart';
 import 'package:note_client/features/auth/data/auth_api_client.dart';
@@ -62,6 +63,40 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('下一批功能会逐步接入外部链接、内部笔记链接和 Markdown 预览。'), findsOneWidget);
+  });
+
+  testWidgets('点击复制链接后写入当前笔记 Markdown 链接', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    String? clipboardText;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          final data = Map<String, Object?>.from(call.arguments as Map);
+          clipboardText = data['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('复制链接'));
+    await tester.pumpAndSettle();
+
+    expect(clipboardText, '[后续会支持链接跳转](note:note-links)');
+    expect(find.text('已复制笔记链接'), findsOneWidget);
   });
 
   testWidgets('新建笔记后展示新内容', (tester) async {

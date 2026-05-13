@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/note_repository.dart';
 import '../data/sqlite_note_repository.dart';
@@ -1194,6 +1195,7 @@ class _NoteDetailPane extends StatelessWidget {
         children: [
           _DocumentToolbar(
             folderName: folderName,
+            note: note,
             onCreate: onCreate,
             onEdit: onEdit,
             compact: compact,
@@ -1209,12 +1211,14 @@ class _NoteDetailPane extends StatelessWidget {
 class _DocumentToolbar extends StatelessWidget {
   const _DocumentToolbar({
     required this.folderName,
+    required this.note,
     required this.onCreate,
     required this.onEdit,
     required this.compact,
   });
 
   final String folderName;
+  final Note note;
   final VoidCallback onCreate;
   final VoidCallback? onEdit;
   final bool compact;
@@ -1239,7 +1243,7 @@ class _DocumentToolbar extends StatelessWidget {
           ),
           if (!compact)
             TextButton.icon(
-              onPressed: () {},
+              onPressed: () => _copyNoteLink(context),
               icon: const Icon(Icons.link_rounded),
               label: const Text('复制链接'),
             ),
@@ -1258,6 +1262,19 @@ class _DocumentToolbar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // _copyNoteLink 复制当前笔记的 Markdown 内部链接。
+  Future<void> _copyNoteLink(BuildContext context) async {
+    await Clipboard.setData(
+      ClipboardData(text: '[${note.title}](note:${note.id})'),
+    );
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已复制笔记链接')));
   }
 }
 

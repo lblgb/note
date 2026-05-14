@@ -11,6 +11,19 @@ go test ./...
 go run .
 ```
 
+默认情况下，账号、刷新令牌和设备登记会写入当前目录下的 SQLite 数据库：
+
+```text
+data/auth.db
+```
+
+可以用环境变量覆盖认证数据库路径：
+
+```powershell
+$env:NOTE_AUTH_DB="E:\note-data\auth.db"
+go run .
+```
+
 ## 健康检查
 
 ```text

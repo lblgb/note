@@ -2,7 +2,10 @@
 package server
 
 import (
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,7 +15,16 @@ import (
 
 // New 创建完整应用 HTTP 服务。
 func New() http.Handler {
-	repo := auth.NewMemoryRepository()
+	repo, err := auth.OpenSQLiteRepository(defaultAuthDatabasePath())
+	if err != nil {
+		log.Printf("打开 SQLite 认证仓库失败，回退到内存仓库：%v", err)
+		return NewWithRepository(auth.NewMemoryRepository())
+	}
+	return NewWithRepository(repo)
+}
+
+// NewWithRepository 使用指定认证仓库创建完整应用 HTTP 服务。
+func NewWithRepository(repo auth.Repository) http.Handler {
 	tokenManager := auth.NewTokenManager([]byte("dev-secret-change-before-production"), 15*time.Minute, 30*24*time.Hour)
 	authService := auth.NewService(repo, tokenManager)
 	authHandlers := auth.NewHandlers(authService)
@@ -25,6 +37,14 @@ func New() http.Handler {
 	mux.HandleFunc("/api/auth/logout", authHandlers.Logout)
 	mux.HandleFunc("/api/devices/register", requireAuth(authService, authHandlers.RegisterDevice))
 	return mux
+}
+
+// defaultAuthDatabasePath 返回默认认证数据库路径。
+func defaultAuthDatabasePath() string {
+	if path := os.Getenv("NOTE_AUTH_DB"); path != "" {
+		return path
+	}
+	return filepath.Join("data", "auth.db")
 }
 
 // healthHandler 返回服务健康状态。

@@ -7,11 +7,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/lblgb/note/services/api/internal/auth"
 )
 
 // TestServerAuthAndDeviceFlow 验证注册后携带访问令牌登记设备。
 func TestServerAuthAndDeviceFlow(t *testing.T) {
-	handler := New()
+	handler := NewWithRepository(auth.NewMemoryRepository())
 
 	registerReq := httptest.NewRequest(http.MethodPost, "/api/auth/register", strings.NewReader(`{"email":"user@example.com","password":"pass123456","displayName":"用户"}`))
 	registerRec := httptest.NewRecorder()
@@ -37,7 +39,7 @@ func TestServerAuthAndDeviceFlow(t *testing.T) {
 
 // TestServerDeviceRequiresAuth 验证设备登记要求访问令牌。
 func TestServerDeviceRequiresAuth(t *testing.T) {
-	handler := New()
+	handler := NewWithRepository(auth.NewMemoryRepository())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/devices/register", strings.NewReader(`{"deviceName":"Windows 主力机","platform":"windows"}`))
 	rec := httptest.NewRecorder()

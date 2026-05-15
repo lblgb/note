@@ -7,6 +7,21 @@ import '../domain/auth_session.dart';
 
 typedef AuthApiTransport = Future<AuthApiResponse> Function(AuthApiRequest);
 
+// resolveAuthApiBaseUrl 解析认证 API 地址，支持编译期配置和平台默认值。
+String resolveAuthApiBaseUrl({
+  String configuredBaseUrl = const String.fromEnvironment('NOTE_API_BASE_URL'),
+  bool? isAndroid,
+}) {
+  final trimmed = configuredBaseUrl.trim();
+  if (trimmed.isNotEmpty) {
+    return trimmed;
+  }
+  if (isAndroid ?? Platform.isAndroid) {
+    return 'http://10.0.2.2:8080';
+  }
+  return 'http://127.0.0.1:8080';
+}
+
 // AuthApiRequest 表示认证 API 传输层请求。
 class AuthApiRequest {
   const AuthApiRequest({
@@ -45,9 +60,10 @@ class AuthApiException implements Exception {
 // AuthApiClient 调用服务端注册、登录和退出接口。
 class AuthApiClient {
   AuthApiClient({
-    this.baseUrl = 'http://127.0.0.1:8080',
+    String? baseUrl,
     AuthApiTransport? transport,
-  }) : _transport = transport;
+  }) : baseUrl = baseUrl ?? resolveAuthApiBaseUrl(),
+       _transport = transport;
 
   final String baseUrl;
   final AuthApiTransport? _transport;

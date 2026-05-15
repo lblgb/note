@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-当前仓库处于基础设计和工程骨架阶段。已完成第一版设计文档，尚未开始业务功能实现。
+当前仓库已完成 Flutter 客户端、Go API、账号注册登录、设备登记、本地 SQLite 笔记存储、Markdown 预览、外部链接和内部笔记链接的第一批闭环。服务端认证数据已持久化到 SQLite，客户端可通过本地 API 地址进行 Windows 和 Android 调试。
 
 ## 第一版目标
 
@@ -20,7 +20,7 @@
 ## 技术栈
 
 - 客户端：Flutter、Dart、SQLite。
-- 后端：Go、PostgreSQL。
+- 后端：Go、SQLite 开发持久化，后续可演进到 PostgreSQL。
 - 附件：可插拔存储层，开发默认本地文件存储，生产可切换对象存储。
 - 文档：中文 Markdown。
 

@@ -19,13 +19,20 @@ Set-Location services/api
 go run .
 ```
 
-客户端默认连接 `http://127.0.0.1:8080`。Android 模拟器访问宿主机 API 时，后续可把客户端注入地址改为 `http://10.0.2.2:8080`。
+客户端默认按平台选择 API 地址：
+
+- Windows 和桌面端：`http://127.0.0.1:8080`。
+- Android 模拟器：`http://10.0.2.2:8080`。
+
+真机调试或后端不在默认地址时，用 `NOTE_API_BASE_URL` 覆盖：
 
 ```powershell
 Set-Location apps/client
 flutter pub get
 flutter test
 flutter run -d windows
+flutter run -d windows --dart-define=NOTE_API_BASE_URL=http://127.0.0.1:8080
+flutter run -d <android-device-id> --dart-define=NOTE_API_BASE_URL=http://电脑局域网IP:8080
 ```
 
 启动后先注册或登录账号，认证成功后客户端会调用 `/api/devices/register` 登记当前设备，再进入本地笔记界面。退出登录会清除本地 `auth_session.json` 并回到登录页。

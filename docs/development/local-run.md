@@ -41,7 +41,13 @@ flutter test
 flutter run -d windows
 ```
 
-Windows 运行后可验证 Calm Cyan UI 基线、文件夹、笔记列表、详情切换，以及新建、编辑、保存和取消编辑。当前阶段文件夹和笔记会写入本地 SQLite，重启应用后仍可读取。
+Windows 默认连接 `http://127.0.0.1:8080`。如果 API 不在默认地址，使用：
+
+```powershell
+flutter run -d windows --dart-define=NOTE_API_BASE_URL=http://127.0.0.1:8080
+```
+
+Windows 运行后可验证账号注册、登录、设备登记、Calm Cyan UI 基线、文件夹、笔记列表、详情切换，以及新建、编辑、保存和取消编辑。当前阶段文件夹和笔记会写入本地 SQLite，重启应用后仍可读取。
 
 Android 运行方式为：
 
@@ -49,6 +55,12 @@ Android 运行方式为：
 Set-Location apps/client
 flutter devices
 flutter run -d <android-device-id>
+```
+
+Android 模拟器默认连接 `http://10.0.2.2:8080`，用于访问电脑宿主机上的 Go API。Android 真机需要指定电脑局域网 IP：
+
+```powershell
+flutter run -d <android-device-id> --dart-define=NOTE_API_BASE_URL=http://电脑局域网IP:8080
 ```
 
 ## 后端
@@ -71,4 +83,17 @@ go run .
 
 ```text
 http://localhost:8080/health
+```
+
+认证数据默认写入：
+
+```text
+services/api/data/auth.db
+```
+
+可用环境变量覆盖数据库位置：
+
+```powershell
+$env:NOTE_AUTH_DB="E:\note-data\auth.db"
+go run .
 ```

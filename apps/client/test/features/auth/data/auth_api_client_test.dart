@@ -7,6 +7,33 @@ import 'package:test/test.dart';
 
 // main 验证认证 API 客户端的请求和响应行为。
 void main() {
+  test('resolveAuthApiBaseUrl 优先使用 dart-define 配置地址', () {
+    final url = resolveAuthApiBaseUrl(
+      configuredBaseUrl: 'http://192.168.1.20:8080',
+      isAndroid: false,
+    );
+
+    expect(url, 'http://192.168.1.20:8080');
+  });
+
+  test('resolveAuthApiBaseUrl 为 Android 模拟器默认使用宿主机地址', () {
+    final url = resolveAuthApiBaseUrl(
+      configuredBaseUrl: '',
+      isAndroid: true,
+    );
+
+    expect(url, 'http://10.0.2.2:8080');
+  });
+
+  test('resolveAuthApiBaseUrl 为桌面默认使用本机地址', () {
+    final url = resolveAuthApiBaseUrl(
+      configuredBaseUrl: '',
+      isAndroid: false,
+    );
+
+    expect(url, 'http://127.0.0.1:8080');
+  });
+
   test('login 发送登录请求并解析会话', () async {
     final requests = <AuthApiRequest>[];
     final client = AuthApiClient(

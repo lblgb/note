@@ -7,6 +7,7 @@ import '../features/auth/data/auth_session_store.dart';
 import '../features/auth/presentation/auth_gate.dart';
 import '../features/notes/data/note_repository.dart';
 import '../features/shell/shell_page.dart';
+import '../features/sync/application/note_sync_service.dart';
 import 'app_theme.dart';
 
 // NoteApp 是 Flutter 客户端根组件。
@@ -16,11 +17,13 @@ class NoteApp extends StatelessWidget {
     this.repository,
     this.authApiClient,
     this.authSessionStore,
+    this.syncAction,
   });
 
   final NoteRepository? repository;
   final AuthApiClient? authApiClient;
   final AuthSessionStore? authSessionStore;
+  final NoteSyncAction? syncAction;
 
   // build 构建应用路由、主题和首页。
   @override
@@ -36,7 +39,12 @@ class NoteApp extends StatelessWidget {
         apiClient: apiClient,
         sessionStore: sessionStore,
         authenticatedBuilder: (context, session, logout) {
-          return ShellPage(repository: repository, onLogout: logout);
+          return ShellPage(
+            repository: repository,
+            session: session,
+            onLogout: logout,
+            syncAction: syncAction,
+          );
         },
       ),
     );

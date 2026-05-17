@@ -59,11 +59,9 @@ class AuthApiException implements Exception {
 
 // AuthApiClient 调用服务端注册、登录和退出接口。
 class AuthApiClient {
-  AuthApiClient({
-    String? baseUrl,
-    AuthApiTransport? transport,
-  }) : baseUrl = baseUrl ?? resolveAuthApiBaseUrl(),
-       _transport = transport;
+  AuthApiClient({String? baseUrl, AuthApiTransport? transport})
+    : baseUrl = baseUrl ?? resolveAuthApiBaseUrl(),
+      _transport = transport;
 
   final String baseUrl;
   final AuthApiTransport? _transport;

@@ -17,19 +17,13 @@ void main() {
   });
 
   test('resolveAuthApiBaseUrl 为 Android 模拟器默认使用宿主机地址', () {
-    final url = resolveAuthApiBaseUrl(
-      configuredBaseUrl: '',
-      isAndroid: true,
-    );
+    final url = resolveAuthApiBaseUrl(configuredBaseUrl: '', isAndroid: true);
 
     expect(url, 'http://10.0.2.2:8080');
   });
 
   test('resolveAuthApiBaseUrl 为桌面默认使用本机地址', () {
-    final url = resolveAuthApiBaseUrl(
-      configuredBaseUrl: '',
-      isAndroid: false,
-    );
+    final url = resolveAuthApiBaseUrl(configuredBaseUrl: '', isAndroid: false);
 
     expect(url, 'http://127.0.0.1:8080');
   });

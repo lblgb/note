@@ -8,6 +8,8 @@ import '../data/note_repository.dart';
 import '../data/sqlite_note_repository.dart';
 import '../domain/folder.dart';
 import '../domain/note.dart';
+import '../../sync/application/note_sync_service.dart';
+import '../../sync/data/sync_api_client.dart';
 import 'markdown_note_body.dart';
 
 const _calmBg = Color(0xFFEEF8FB);
@@ -29,12 +31,16 @@ class NoteBrowserPage extends StatefulWidget {
     super.key,
     this.repository,
     this.repositoryFactory,
+    this.accessToken,
     this.onLogout,
+    this.syncAction,
   });
 
   final NoteRepository? repository;
   final Future<NoteRepository> Function()? repositoryFactory;
+  final String? accessToken;
   final VoidCallback? onLogout;
+  final NoteSyncAction? syncAction;
 
   // createState 创建本地笔记浏览和编辑状态。
   @override
@@ -52,6 +58,8 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
   bool _isLoading = true;
   bool _isEditing = false;
   bool _isCreating = false;
+  bool _isSyncing = false;
+  String _syncLabel = 'SQLite 已保存';
 
   // initState 初始化注入仓储或启动默认 SQLite 仓储加载。
   @override
@@ -144,6 +152,9 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
                     children: [
                       _TopToolbar(
                         onLogout: widget.onLogout,
+                        onSync: _syncNow,
+                        syncLabel: _syncLabel,
+                        isSyncing: _isSyncing,
                         showSearch: isWide,
                       ),
                       Expanded(
@@ -369,13 +380,79 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
       _isCreating = false;
     });
   }
+
+  // _syncNow 手动执行当前本地仓库和服务端之间的同步。
+  Future<void> _syncNow() async {
+    final repository = _repository;
+    final accessToken = widget.accessToken;
+    if (repository == null || accessToken == null || _isSyncing) {
+      return;
+    }
+    setState(() {
+      _isSyncing = true;
+      _syncLabel = '同步中';
+    });
+    try {
+      final action = widget.syncAction ?? _defaultSyncAction;
+      await action(repository, accessToken);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isSyncing = false;
+        _syncLabel = '已同步';
+        _selectCurrentNoteAfterSync(repository);
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isSyncing = false;
+        _syncLabel = '同步失败';
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_syncErrorMessage(error))));
+    }
+  }
+
+  // _selectCurrentNoteAfterSync 同步后保持或修正当前选中的文件夹和笔记。
+  void _selectCurrentNoteAfterSync(NoteRepository repository) {
+    final selectedNoteId = _selectedNoteId;
+    final selectedNote = selectedNoteId == null
+        ? null
+        : repository.findNote(selectedNoteId);
+    if (selectedNote != null) {
+      _selectedFolderId = selectedNote.folderId;
+      return;
+    }
+    final folderId = _selectedFolderId;
+    if (folderId != null && repository.listNotes(folderId).isNotEmpty) {
+      _selectedNoteId = repository.listNotes(folderId).first.id;
+      return;
+    }
+    final folders = repository.listFolders();
+    if (folders.isNotEmpty) {
+      _selectFolder(folders.first.id, updateState: false);
+    }
+  }
 }
 
 // _TopToolbar 展示产品品牌、搜索占位和主操作。
 class _TopToolbar extends StatelessWidget {
-  const _TopToolbar({required this.onLogout, required this.showSearch});
+  const _TopToolbar({
+    required this.onLogout,
+    required this.onSync,
+    required this.syncLabel,
+    required this.isSyncing,
+    required this.showSearch,
+  });
 
   final VoidCallback? onLogout;
+  final VoidCallback onSync;
+  final String syncLabel;
+  final bool isSyncing;
   final bool showSearch;
 
   // build 构建顶部工具栏。
@@ -402,7 +479,13 @@ class _TopToolbar extends StatelessWidget {
           ),
           const Spacer(),
           if (showSearch) ...[const _SearchBox(), const SizedBox(width: 12)],
-          const _SyncBadge(),
+          _SyncBadge(label: syncLabel, isSyncing: isSyncing),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: isSyncing ? null : onSync,
+            icon: const Icon(Icons.sync_rounded),
+            label: Text(isSyncing ? '同步中' : '同步'),
+          ),
           const SizedBox(width: 12),
           if (onLogout != null) ...[
             OutlinedButton.icon(
@@ -473,7 +556,10 @@ class _SearchBox extends StatelessWidget {
 
 // _SyncBadge 展示本地保存状态。
 class _SyncBadge extends StatelessWidget {
-  const _SyncBadge();
+  const _SyncBadge({required this.label, required this.isSyncing});
+
+  final String label;
+  final bool isSyncing;
 
   // build 构建 SQLite 状态徽标。
   @override
@@ -486,14 +572,18 @@ class _SyncBadge extends StatelessWidget {
         border: Border.all(color: const Color(0xFFBFEBD8)),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.check_circle_rounded, size: 16, color: _calmGreen),
-          SizedBox(width: 6),
+          Icon(
+            isSyncing ? Icons.sync_rounded : Icons.check_circle_rounded,
+            size: 16,
+            color: _calmGreen,
+          ),
+          const SizedBox(width: 6),
           Text(
-            'SQLite 已保存',
-            style: TextStyle(
+            label,
+            style: const TextStyle(
               color: Color(0xFF047857),
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -503,6 +593,25 @@ class _SyncBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+// _defaultSyncAction 创建默认同步服务并执行同步。
+Future<NoteSyncResult> _defaultSyncAction(
+  NoteRepository repository,
+  String accessToken,
+) {
+  return NoteSyncService(
+    repository: repository,
+    apiClient: SyncApiClient(),
+  ).syncNow(accessToken: accessToken);
+}
+
+// _syncErrorMessage 返回同步错误的可展示文本。
+String _syncErrorMessage(Object error) {
+  if (error is SyncApiException) {
+    return error.message;
+  }
+  return '同步失败，请稍后重试';
 }
 
 // _WideWorkspace 展示 Windows 宽屏三栏工作区。

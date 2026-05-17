@@ -7,16 +7,23 @@ import 'package:note_client/features/auth/data/auth_api_client.dart';
 import 'package:note_client/features/auth/data/auth_session_store.dart';
 import 'package:note_client/features/auth/domain/auth_session.dart';
 import 'package:note_client/features/notes/data/in_memory_note_repository.dart';
+import 'package:note_client/features/notes/data/note_repository.dart';
+import 'package:note_client/features/notes/domain/note.dart';
 import 'package:note_client/features/notes/presentation/note_browser_page.dart';
+import 'package:note_client/features/sync/application/note_sync_service.dart';
 
 // main 注册客户端本地笔记浏览和编辑组件测试。
 void main() {
   // buildTestApp 创建使用独立内存仓储的测试应用。
-  Widget buildTestApp({InMemoryNoteRepository? repository}) {
+  Widget buildTestApp({
+    InMemoryNoteRepository? repository,
+    NoteSyncAction? syncAction,
+  }) {
     return NoteApp(
       repository: repository ?? InMemoryNoteRepository(),
       authApiClient: _NoopAuthApiClient(),
       authSessionStore: MemoryAuthSessionStore(initialSession: _testSession),
+      syncAction: syncAction,
     );
   }
 
@@ -171,6 +178,45 @@ void main() {
 
     expect(find.text('工作计划'), findsWidgets);
     expect(find.text('内链测试'), findsNothing);
+  });
+
+  testWidgets('点击同步后调用同步服务并展示已同步', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var syncCount = 0;
+
+    await tester.pumpWidget(
+      buildTestApp(
+        syncAction: (repository, accessToken) async {
+          syncCount++;
+          expect(accessToken, 'access-token');
+          repository.upsertNote(
+            Note(
+              id: 'note-synced',
+              folderId: 'folder-inbox',
+              title: '同步回来的笔记',
+              content: '来自服务端。',
+              updatedAt: DateTime(2026, 5, 17, 13),
+            ),
+          );
+          return const NoteSyncResult(
+            serverVersion: 3,
+            folderCount: 0,
+            noteCount: 1,
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('同步'));
+    await tester.pumpAndSettle();
+
+    expect(syncCount, 1);
+    expect(find.text('已同步'), findsOneWidget);
+    expect(find.text('同步回来的笔记'), findsWidgets);
   });
 }
 

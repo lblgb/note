@@ -14,13 +14,15 @@ class ShellPage extends StatelessWidget {
     required this.session,
     this.repository,
     this.onLogout,
+    this.refreshSession,
     this.syncAction,
   });
 
   final AuthSession session;
   final NoteRepository? repository;
   final VoidCallback? onLogout;
-  final NoteSyncAction? syncAction;
+  final Future<AuthSession> Function()? refreshSession;
+  final RefreshingNoteSyncAction? syncAction;
 
   // build 构建应用壳并挂载本地笔记浏览器。
   @override
@@ -29,6 +31,7 @@ class ShellPage extends StatelessWidget {
       repository: repository,
       accessToken: session.accessToken,
       onLogout: onLogout,
+      refreshSession: refreshSession,
       syncAction: syncAction,
     );
   }

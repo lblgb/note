@@ -23,7 +23,7 @@ class NoteApp extends StatelessWidget {
   final NoteRepository? repository;
   final AuthApiClient? authApiClient;
   final AuthSessionStore? authSessionStore;
-  final NoteSyncAction? syncAction;
+  final RefreshingNoteSyncAction? syncAction;
 
   // build 构建应用路由、主题和首页。
   @override
@@ -38,11 +38,12 @@ class NoteApp extends StatelessWidget {
       home: AuthGate(
         apiClient: apiClient,
         sessionStore: sessionStore,
-        authenticatedBuilder: (context, session, logout) {
+        authenticatedBuilder: (context, session, logout, refreshSession) {
           return ShellPage(
             repository: repository,
             session: session,
             onLogout: logout,
+            refreshSession: refreshSession,
             syncAction: syncAction,
           );
         },

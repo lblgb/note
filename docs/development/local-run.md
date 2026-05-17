@@ -56,8 +56,27 @@ Windows 运行后可验证账号注册、登录、设备登记、Calm Cyan UI �
 2. 启动 Windows 客户端并注册或登录。
 3. 新建或编辑一条笔记。
 4. 点击顶部“同步”。
-5. 看到状态变为“已同步”。
+5. 看到状态变为“已同步：X 文件夹 / Y 笔记”。
 6. 用 DB Browser for SQLite 打开 services/api/data/sync.db，查看 sync_folders 和 sync_notes。
+```
+
+同步游标保存在客户端本地：
+
+```text
+%APPDATA%\NoteClient\sync_cursor.json
+```
+
+如果想重新从服务端全量拉取，可以关闭客户端后删除这个文件，再重新启动客户端点击“同步”。
+
+登录态恢复验证方式：
+
+```text
+1. 保持客户端打开。
+2. 删除或替换服务端 data/auth.db，或者等待访问令牌失效。
+3. 点击“同步”。
+4. 如果 refresh token 仍有效，客户端会自动刷新令牌并重试。
+5. 如果刷新失败，会出现“登录已失效”弹窗。
+6. 点击“重新登录”后回到登录页，本地笔记数据不删除。
 ```
 
 Android 运行方式为：

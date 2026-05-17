@@ -57,6 +57,22 @@ class AuthApiException implements Exception {
   String toString() => 'AuthApiException($code, $message)';
 }
 
+// AuthTokenPair 表示刷新令牌接口返回的新令牌。
+class AuthTokenPair {
+  const AuthTokenPair({required this.accessToken, required this.refreshToken});
+
+  final String accessToken;
+  final String refreshToken;
+
+  // fromJson 从 JSON 对象解析令牌对。
+  factory AuthTokenPair.fromJson(Map<String, Object?> json) {
+    return AuthTokenPair(
+      accessToken: json['accessToken'] as String? ?? '',
+      refreshToken: json['refreshToken'] as String? ?? '',
+    );
+  }
+}
+
 // AuthApiClient 调用服务端注册、登录和退出接口。
 class AuthApiClient {
   AuthApiClient({String? baseUrl, AuthApiTransport? transport})
@@ -95,6 +111,21 @@ class AuthApiClient {
   // logout 请求服务端注销刷新令牌。
   Future<void> logout(String refreshToken) async {
     await _post('/api/auth/logout', {'refreshToken': refreshToken});
+  }
+
+  // refresh 使用刷新令牌换取新访问令牌和刷新令牌。
+  Future<AuthTokenPair> refresh(String refreshToken) async {
+    final response = await _post('/api/auth/refresh', {
+      'refreshToken': refreshToken,
+    });
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, Object?>) {
+      throw const AuthApiException(
+        code: 'invalid_response',
+        message: '请求失败，请稍后重试',
+      );
+    }
+    return AuthTokenPair.fromJson(decoded);
   }
 
   // registerDevice 登记当前设备并返回服务端设备信息。

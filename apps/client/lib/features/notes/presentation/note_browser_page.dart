@@ -4,12 +4,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../auth/data/auth_api_client.dart';
+import '../../auth/domain/auth_session.dart';
 import '../data/note_repository.dart';
 import '../data/sqlite_note_repository.dart';
 import '../domain/folder.dart';
 import '../domain/note.dart';
 import '../../sync/application/note_sync_service.dart';
 import '../../sync/data/sync_api_client.dart';
+import '../../sync/data/sync_cursor_store.dart';
 import 'markdown_note_body.dart';
 
 const _calmBg = Color(0xFFEEF8FB);
@@ -33,6 +36,7 @@ class NoteBrowserPage extends StatefulWidget {
     this.repositoryFactory,
     this.accessToken,
     this.onLogout,
+    this.refreshSession,
     this.syncAction,
   });
 
@@ -40,7 +44,8 @@ class NoteBrowserPage extends StatefulWidget {
   final Future<NoteRepository> Function()? repositoryFactory;
   final String? accessToken;
   final VoidCallback? onLogout;
-  final NoteSyncAction? syncAction;
+  final Future<AuthSession> Function()? refreshSession;
+  final RefreshingNoteSyncAction? syncAction;
 
   // createState 创建本地笔记浏览和编辑状态。
   @override
@@ -394,13 +399,18 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
     });
     try {
       final action = widget.syncAction ?? _defaultSyncAction;
-      await action(repository, accessToken);
+      final accessTokenProvider = _accessTokenProvider(accessToken);
+      final result = await _runSyncActionWithRetry(
+        action,
+        repository,
+        accessTokenProvider,
+      );
       if (!mounted) {
         return;
       }
       setState(() {
         _isSyncing = false;
-        _syncLabel = '已同步';
+        _syncLabel = '已同步：${result.folderCount} 文件夹 / ${result.noteCount} 笔记';
         _selectCurrentNoteAfterSync(repository);
       });
     } catch (error) {
@@ -411,9 +421,73 @@ class _NoteBrowserPageState extends State<NoteBrowserPage> {
         _isSyncing = false;
         _syncLabel = '同步失败';
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_syncErrorMessage(error))));
+      if (_isAuthExpired(error)) {
+        await _showAuthExpiredDialog();
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_syncErrorMessage(error))));
+      }
+    }
+  }
+
+  // _accessTokenProvider 返回可刷新访问令牌的函数。
+  Future<String> Function() _accessTokenProvider(String initialAccessToken) {
+    var currentAccessToken = initialAccessToken;
+    var firstUse = true;
+    return () async {
+      if (firstUse) {
+        firstUse = false;
+        return currentAccessToken;
+      }
+      final refreshed = await widget.refreshSession?.call();
+      if (refreshed == null) {
+        throw const SyncApiException(code: 'unauthorized', message: '登录已失效');
+      }
+      currentAccessToken = refreshed.accessToken;
+      return currentAccessToken;
+    };
+  }
+
+  // _runSyncActionWithRetry 在登录失效时刷新令牌并重试一次同步动作。
+  Future<NoteSyncResult> _runSyncActionWithRetry(
+    RefreshingNoteSyncAction action,
+    NoteRepository repository,
+    Future<String> Function() accessTokenProvider,
+  ) async {
+    try {
+      return await action(repository, accessTokenProvider);
+    } catch (error) {
+      if (!_isAuthExpired(error)) {
+        rethrow;
+      }
+      return action(repository, accessTokenProvider);
+    }
+  }
+
+  // _showAuthExpiredDialog 展示登录失效处理弹窗。
+  Future<void> _showAuthExpiredDialog() async {
+    final shouldRelogin = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('登录已失效'),
+          content: const Text('当前登录状态已过期，请重新登录后再同步。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('重新登录'),
+            ),
+          ],
+        );
+      },
+    );
+    if (shouldRelogin == true) {
+      widget.onLogout?.call();
     }
   }
 
@@ -598,12 +672,24 @@ class _SyncBadge extends StatelessWidget {
 // _defaultSyncAction 创建默认同步服务并执行同步。
 Future<NoteSyncResult> _defaultSyncAction(
   NoteRepository repository,
-  String accessToken,
+  Future<String> Function() accessTokenProvider,
 ) {
   return NoteSyncService(
     repository: repository,
     apiClient: SyncApiClient(),
-  ).syncNow(accessToken: accessToken);
+    cursorStore: FileSyncCursorStore(),
+  ).syncNowWithRefresh(accessTokenProvider: accessTokenProvider);
+}
+
+// _isAuthExpired 判断同步错误是否表示登录失效。
+bool _isAuthExpired(Object error) {
+  if (error is SyncApiException) {
+    return error.code == 'unauthorized' || error.code == 'invalid_credentials';
+  }
+  if (error is AuthApiException) {
+    return error.code == 'unauthorized' || error.code == 'invalid_credentials';
+  }
+  return false;
 }
 
 // _syncErrorMessage 返回同步错误的可展示文本。

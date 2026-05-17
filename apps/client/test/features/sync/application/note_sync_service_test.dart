@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_client/features/notes/data/in_memory_note_repository.dart';
 import 'package:note_client/features/sync/application/note_sync_service.dart';
 import 'package:note_client/features/sync/data/sync_api_client.dart';
+import 'package:note_client/features/sync/data/sync_cursor_store.dart';
 
 // main 验证手动同步服务行为。
 void main() {
@@ -29,6 +30,7 @@ void main() {
     final service = NoteSyncService(
       repository: repository,
       apiClient: apiClient,
+      cursorStore: MemorySyncCursorStore(),
     );
 
     final result = await service.syncNow(accessToken: 'access');
@@ -42,5 +44,37 @@ void main() {
     );
     expect(repository.findNote('note-remote')?.title, '远端标题');
     expect(repository.findNote('note-remote')?.content, '远端正文');
+  });
+
+  test('syncNow 使用本地游标增量拉取并保存新版本', () async {
+    final repository = InMemoryNoteRepository();
+    final cursorStore = MemorySyncCursorStore(initialVersion: 8);
+    final requests = <SyncApiRequest>[];
+    final apiClient = SyncApiClient(
+      transport: (request) async {
+        requests.add(request);
+        if (request.path == '/api/sync/push') {
+          return const SyncApiResponse(
+            statusCode: 200,
+            body: '{"serverVersion":9,"folders":[],"notes":[]}',
+          );
+        }
+        return const SyncApiResponse(
+          statusCode: 200,
+          body: '{"serverVersion":11,"folders":[],"notes":[]}',
+        );
+      },
+    );
+    final service = NoteSyncService(
+      repository: repository,
+      apiClient: apiClient,
+      cursorStore: cursorStore,
+    );
+
+    final result = await service.syncNow(accessToken: 'access');
+
+    expect(requests.last.path, '/api/sync/pull?since=8');
+    expect(result.serverVersion, 11);
+    expect(await cursorStore.load(), 11);
   });
 }

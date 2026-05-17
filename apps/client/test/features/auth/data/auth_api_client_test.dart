@@ -140,6 +140,27 @@ void main() {
     expect(jsonDecode(requests.single.body)['refreshToken'], 'refresh-token');
   });
 
+  test('refresh 发送刷新令牌并解析新令牌', () async {
+    final requests = <AuthApiRequest>[];
+    final client = AuthApiClient(
+      baseUrl: 'http://localhost:8080',
+      transport: (request) async {
+        requests.add(request);
+        return const AuthApiResponse(
+          statusCode: 200,
+          body: '{"accessToken":"new-access","refreshToken":"new-refresh"}',
+        );
+      },
+    );
+
+    final pair = await client.refresh('old-refresh');
+
+    expect(requests.single.path, '/api/auth/refresh');
+    expect(jsonDecode(requests.single.body)['refreshToken'], 'old-refresh');
+    expect(pair.accessToken, 'new-access');
+    expect(pair.refreshToken, 'new-refresh');
+  });
+
   test('registerDevice 携带访问令牌登记当前设备', () async {
     final requests = <AuthApiRequest>[];
     final client = AuthApiClient(

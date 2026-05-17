@@ -8,10 +8,10 @@ import 'note_repository.dart';
 class InMemoryNoteRepository implements NoteRepository {
   InMemoryNoteRepository({DateTime Function()? now})
     : _now = now ?? DateTime.now,
-      _folders = const [
-        Folder(id: 'folder-inbox', name: '收集箱'),
-        Folder(id: 'folder-work', name: '工作'),
-        Folder(id: 'folder-life', name: '生活'),
+      _folders = [
+        const Folder(id: 'folder-inbox', name: '收集箱'),
+        const Folder(id: 'folder-work', name: '工作'),
+        const Folder(id: 'folder-life', name: '生活'),
       ],
       _notes = [
         Note(
@@ -52,6 +52,14 @@ class InMemoryNoteRepository implements NoteRepository {
   // listFolders 返回种子文件夹列表。
   @override
   List<Folder> listFolders() => List.unmodifiable(_folders);
+
+  // listAllNotes 返回全部内存笔记。
+  @override
+  List<Note> listAllNotes() {
+    final notes = [..._notes]
+      ..sort((left, right) => right.updatedAt.compareTo(left.updatedAt));
+    return List.unmodifiable(notes);
+  }
 
   // listNotes 返回指定文件夹下按更新时间倒序排列的笔记。
   @override
@@ -112,5 +120,27 @@ class InMemoryNoteRepository implements NoteRepository {
     );
     _notes[index] = updated;
     return updated;
+  }
+
+  // upsertFolder 新增或覆盖内存文件夹。
+  @override
+  void upsertFolder(Folder folder) {
+    final index = _folders.indexWhere((item) => item.id == folder.id);
+    if (index == -1) {
+      _folders.add(folder);
+      return;
+    }
+    _folders[index] = folder;
+  }
+
+  // upsertNote 新增或覆盖内存笔记。
+  @override
+  void upsertNote(Note note) {
+    final index = _notes.indexWhere((item) => item.id == note.id);
+    if (index == -1) {
+      _notes.add(note);
+      return;
+    }
+    _notes[index] = note;
   }
 }

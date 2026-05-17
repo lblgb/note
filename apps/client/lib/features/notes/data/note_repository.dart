@@ -8,6 +8,9 @@ abstract interface class NoteRepository {
   // listFolders 返回本地文件夹列表。
   List<Folder> listFolders();
 
+  // listAllNotes 返回本地全部笔记。
+  List<Note> listAllNotes();
+
   // listNotes 返回指定文件夹下的笔记列表。
   List<Note> listNotes(String folderId);
 
@@ -27,4 +30,10 @@ abstract interface class NoteRepository {
     required String title,
     required String content,
   });
+
+  // upsertFolder 新增或覆盖本地文件夹。
+  void upsertFolder(Folder folder);
+
+  // upsertNote 新增或覆盖本地笔记。
+  void upsertNote(Note note);
 }

@@ -61,6 +61,17 @@ class SqliteNoteRepository implements NoteRepository {
     ];
   }
 
+  // listAllNotes 返回本地全部笔记。
+  @override
+  List<Note> listAllNotes() {
+    final rows = _database.select('''
+SELECT id, folder_id, title, content, updated_at
+FROM notes
+ORDER BY updated_at DESC
+''');
+    return [for (final row in rows) _noteFromRow(row)];
+  }
+
   // listNotes 返回指定文件夹下按更新时间倒序排列的笔记。
   @override
   List<Note> listNotes(String folderId) {
@@ -158,6 +169,42 @@ WHERE id = ?
       ],
     );
     return updated;
+  }
+
+  // upsertFolder 新增或覆盖本地文件夹。
+  @override
+  void upsertFolder(Folder folder) {
+    _database.execute(
+      '''
+INSERT INTO folders (id, name, created_at)
+VALUES (?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET name = excluded.name
+''',
+      [folder.id, folder.name, _now().toIso8601String()],
+    );
+  }
+
+  // upsertNote 新增或覆盖本地笔记。
+  @override
+  void upsertNote(Note note) {
+    _database.execute(
+      '''
+INSERT INTO notes (id, folder_id, title, content, updated_at)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+  folder_id = excluded.folder_id,
+  title = excluded.title,
+  content = excluded.content,
+  updated_at = excluded.updated_at
+''',
+      [
+        note.id,
+        note.folderId,
+        note.title,
+        note.content,
+        note.updatedAt.toIso8601String(),
+      ],
+    );
   }
 
   // _createSchema 创建第一版本地笔记数据库表。

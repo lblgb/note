@@ -11,23 +11,38 @@ import (
 
 	"github.com/lblgb/note/services/api/internal/auth"
 	"github.com/lblgb/note/services/api/internal/httpjson"
+	syncsvc "github.com/lblgb/note/services/api/internal/sync"
 )
 
 // New 创建完整应用 HTTP 服务。
 func New() http.Handler {
-	repo, err := auth.OpenSQLiteRepository(defaultAuthDatabasePath())
+	authRepo, err := auth.OpenSQLiteRepository(defaultAuthDatabasePath())
 	if err != nil {
 		log.Printf("打开 SQLite 认证仓库失败，回退到内存仓库：%v", err)
-		return NewWithRepository(auth.NewMemoryRepository())
+		authRepo = nil
 	}
-	return NewWithRepository(repo)
+	syncRepo, err := syncsvc.OpenSQLiteRepository(defaultSyncDatabasePath())
+	if err != nil {
+		log.Printf("打开 SQLite 同步仓库失败，回退到内存仓库：%v", err)
+		syncRepo = nil
+	}
+	if authRepo == nil {
+		return NewWithRepositories(auth.NewMemoryRepository(), fallbackSyncRepository(syncRepo))
+	}
+	return NewWithRepositories(authRepo, fallbackSyncRepository(syncRepo))
 }
 
 // NewWithRepository 使用指定认证仓库创建完整应用 HTTP 服务。
 func NewWithRepository(repo auth.Repository) http.Handler {
+	return NewWithRepositories(repo, syncsvc.NewMemoryRepository())
+}
+
+// NewWithRepositories 使用指定认证仓库和同步仓库创建完整应用 HTTP 服务。
+func NewWithRepositories(repo auth.Repository, syncRepo syncsvc.Repository) http.Handler {
 	tokenManager := auth.NewTokenManager([]byte("dev-secret-change-before-production"), 15*time.Minute, 30*24*time.Hour)
 	authService := auth.NewService(repo, tokenManager)
 	authHandlers := auth.NewHandlers(authService)
+	syncHandlers := syncsvc.NewHandlers(syncRepo)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
@@ -36,6 +51,8 @@ func NewWithRepository(repo auth.Repository) http.Handler {
 	mux.HandleFunc("/api/auth/refresh", authHandlers.Refresh)
 	mux.HandleFunc("/api/auth/logout", authHandlers.Logout)
 	mux.HandleFunc("/api/devices/register", requireAuth(authService, authHandlers.RegisterDevice))
+	mux.HandleFunc("/api/sync/push", requireAuth(authService, syncHandlers.Push))
+	mux.HandleFunc("/api/sync/pull", requireAuth(authService, syncHandlers.Pull))
 	return mux
 }
 
@@ -45,6 +62,22 @@ func defaultAuthDatabasePath() string {
 		return path
 	}
 	return filepath.Join("data", "auth.db")
+}
+
+// defaultSyncDatabasePath 返回默认同步数据库路径。
+func defaultSyncDatabasePath() string {
+	if path := os.Getenv("NOTE_SYNC_DB"); path != "" {
+		return path
+	}
+	return filepath.Join("data", "sync.db")
+}
+
+// fallbackSyncRepository 返回可用的同步仓库。
+func fallbackSyncRepository(repo *syncsvc.SQLiteRepository) syncsvc.Repository {
+	if repo == nil {
+		return syncsvc.NewMemoryRepository()
+	}
+	return repo
 }
 
 // healthHandler 返回服务健康状态。

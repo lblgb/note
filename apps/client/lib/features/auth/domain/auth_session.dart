@@ -98,6 +98,19 @@ class AuthSession {
     );
   }
 
+  // copyWithTokens 返回替换访问令牌和刷新令牌的新会话。
+  AuthSession copyWithTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) {
+    return AuthSession(
+      user: user,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      device: device,
+    );
+  }
+
   // toJson 将认证会话转换为 JSON 对象。
   Map<String, Object?> toJson() {
     return {

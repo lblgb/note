@@ -39,17 +39,18 @@ void main() {
           deviceName: 'Windows 设备',
           platform: 'windows',
         ),
-        authenticatedBuilder: (context, currentSession, logout) {
-          return Scaffold(
-            body: Column(
-              children: [
-                Text('已登录：${currentSession.user.displayName}'),
-                Text('设备：${currentSession.device?.id ?? '未登记'}'),
-                TextButton(onPressed: logout, child: const Text('退出')),
-              ],
-            ),
-          );
-        },
+        authenticatedBuilder:
+            (context, currentSession, logout, refreshSession) {
+              return Scaffold(
+                body: Column(
+                  children: [
+                    Text('已登录：${currentSession.user.displayName}'),
+                    Text('设备：${currentSession.device?.id ?? '未登记'}'),
+                    TextButton(onPressed: logout, child: const Text('退出')),
+                  ],
+                ),
+              );
+            },
       ),
     );
   }
@@ -125,6 +126,15 @@ class _FakeAuthApiClient implements AuthApiClient {
   // logout 记录退出请求。
   @override
   Future<void> logout(String refreshToken) async {}
+
+  // refresh 返回预设刷新会话令牌。
+  @override
+  Future<AuthTokenPair> refresh(String refreshToken) async {
+    return AuthTokenPair(
+      accessToken: loginSession.accessToken,
+      refreshToken: loginSession.refreshToken,
+    );
+  }
 
   // registerDevice 返回预设设备。
   @override

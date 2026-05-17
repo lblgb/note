@@ -11,17 +11,19 @@ import 'package:note_client/features/notes/data/note_repository.dart';
 import 'package:note_client/features/notes/domain/note.dart';
 import 'package:note_client/features/notes/presentation/note_browser_page.dart';
 import 'package:note_client/features/sync/application/note_sync_service.dart';
+import 'package:note_client/features/sync/data/sync_api_client.dart';
 
 // main 注册客户端本地笔记浏览和编辑组件测试。
 void main() {
   // buildTestApp 创建使用独立内存仓储的测试应用。
   Widget buildTestApp({
     InMemoryNoteRepository? repository,
-    NoteSyncAction? syncAction,
+    RefreshingNoteSyncAction? syncAction,
+    AuthApiClient? authApiClient,
   }) {
     return NoteApp(
       repository: repository ?? InMemoryNoteRepository(),
-      authApiClient: _NoopAuthApiClient(),
+      authApiClient: authApiClient ?? _NoopAuthApiClient(),
       authSessionStore: MemoryAuthSessionStore(initialSession: _testSession),
       syncAction: syncAction,
     );
@@ -189,9 +191,9 @@ void main() {
 
     await tester.pumpWidget(
       buildTestApp(
-        syncAction: (repository, accessToken) async {
+        syncAction: (repository, accessTokenProvider) async {
           syncCount++;
-          expect(accessToken, 'access-token');
+          expect(await accessTokenProvider(), 'access-token');
           repository.upsertNote(
             Note(
               id: 'note-synced',
@@ -215,8 +217,78 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(syncCount, 1);
-    expect(find.text('已同步'), findsOneWidget);
+    expect(find.text('已同步：0 文件夹 / 1 笔记'), findsOneWidget);
     expect(find.text('同步回来的笔记'), findsWidgets);
+  });
+
+  testWidgets('同步未授权时刷新令牌并重试成功', (tester) async {
+    var syncCount = 0;
+    final authClient = _NoopAuthApiClient(
+      refreshResult: const AuthTokenPair(
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+      ),
+    );
+
+    await tester.pumpWidget(
+      buildTestApp(
+        authApiClient: authClient,
+        syncAction: (repository, accessTokenProvider) async {
+          syncCount++;
+          final accessToken = await accessTokenProvider();
+          if (syncCount == 1) {
+            expect(accessToken, 'access-token');
+            throw const SyncApiException(
+              code: 'unauthorized',
+              message: '未登录或令牌无效',
+            );
+          }
+          expect(accessToken, 'new-access-token');
+          return const NoteSyncResult(
+            serverVersion: 5,
+            folderCount: 0,
+            noteCount: 0,
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('同步'));
+    await tester.pumpAndSettle();
+
+    expect(syncCount, 2);
+    expect(authClient.refreshCount, 1);
+    expect(find.text('已同步：0 文件夹 / 0 笔记'), findsOneWidget);
+  });
+
+  testWidgets('同步刷新失败时可重新登录', (tester) async {
+    final authClient = _NoopAuthApiClient(refreshShouldFail: true);
+
+    await tester.pumpWidget(
+      buildTestApp(
+        authApiClient: authClient,
+        syncAction: (repository, accessTokenProvider) async {
+          await accessTokenProvider();
+          throw const SyncApiException(
+            code: 'unauthorized',
+            message: '未登录或令牌无效',
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('同步'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('登录已失效'), findsOneWidget);
+    expect(find.text('当前登录状态已过期，请重新登录后再同步。'), findsOneWidget);
+
+    await tester.tap(find.text('重新登录'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('登录账号'), findsOneWidget);
   });
 }
 
@@ -228,6 +300,12 @@ const _testSession = AuthSession(
 
 // _NoopAuthApiClient 为笔记组件测试提供无需联网的认证客户端。
 class _NoopAuthApiClient implements AuthApiClient {
+  _NoopAuthApiClient({this.refreshResult, this.refreshShouldFail = false});
+
+  final AuthTokenPair? refreshResult;
+  final bool refreshShouldFail;
+  int refreshCount = 0;
+
   // baseUrl 返回测试 API 地址。
   @override
   String get baseUrl => 'http://localhost:8080';
@@ -244,6 +322,23 @@ class _NoopAuthApiClient implements AuthApiClient {
   // logout 忽略测试退出请求。
   @override
   Future<void> logout(String refreshToken) async {}
+
+  // refresh 返回测试刷新令牌结果。
+  @override
+  Future<AuthTokenPair> refresh(String refreshToken) async {
+    refreshCount++;
+    if (refreshShouldFail) {
+      throw const AuthApiException(
+        code: 'invalid_credentials',
+        message: '登录已失效',
+      );
+    }
+    return refreshResult ??
+        const AuthTokenPair(
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+        );
+  }
 
   // registerDevice 返回测试设备。
   @override

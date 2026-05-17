@@ -13,6 +13,7 @@ typedef AuthenticatedBuilder =
       BuildContext context,
       AuthSession session,
       VoidCallback logout,
+      Future<AuthSession> Function() refreshSession,
     );
 
 typedef AuthDeviceProfileProvider = AuthDeviceProfile Function();
@@ -68,7 +69,12 @@ class _AuthGateState extends State<AuthGate> {
 
     final session = _session;
     if (session != null) {
-      return widget.authenticatedBuilder(context, session, _logout);
+      return widget.authenticatedBuilder(
+        context,
+        session,
+        _logout,
+        _refreshSession,
+      );
     }
 
     return AuthPage(
@@ -167,6 +173,29 @@ class _AuthGateState extends State<AuthGate> {
       _errorMessage = null;
       _isSubmitting = false;
     });
+  }
+
+  // _refreshSession 使用刷新令牌更新本地会话。
+  Future<AuthSession> _refreshSession() async {
+    final session = _session;
+    if (session == null) {
+      throw const AuthApiException(
+        code: 'invalid_credentials',
+        message: '登录已失效',
+      );
+    }
+    final pair = await widget.apiClient.refresh(session.refreshToken);
+    final refreshed = session.copyWithTokens(
+      accessToken: pair.accessToken,
+      refreshToken: pair.refreshToken,
+    );
+    await widget.sessionStore.save(refreshed);
+    if (mounted) {
+      setState(() {
+        _session = refreshed;
+      });
+    }
+    return refreshed;
   }
 }
 
